@@ -215,6 +215,9 @@ impl NebulaWorkspace {
                     });
                 }
                 let Ok(retry_callbacks) = this.update(cx, |workspace, cx| {
+                    if workspace.refresh_pending_pane_groups() {
+                        cx.notify();
+                    }
                     workspace.publish_tray_agents(cx);
                     workspace.runtime_hub.has_pending_delegation_callbacks()
                 }) else { return };
@@ -324,6 +327,11 @@ impl NebulaWorkspace {
         cx: &mut Context<Self>,
     ) {
         let Some(view) = self.tabs.get(ix).and_then(WorkspaceTab::focused_view) else { return };
+        let project = self
+            .tabs
+            .get(ix)
+            .and_then(WorkspaceTab::primary_terminal_pane)
+            .and_then(|pane| pane.project.clone());
         let (command, agent) = {
             let view = view.read(cx);
             let Some(command) = view.ai_fork_command() else { return };
@@ -360,7 +368,7 @@ impl NebulaWorkspace {
         let shell_tag = Self::launch_shell_tag(&launch_session);
         let grid = self.inherited_grid(cx);
         let launch = Self::terminal_launch_from_session(&launch_session, cwd);
-        let pane = self.new_pane(grid, launch, Some(command), window, cx);
+        let pane = self.new_pane_for_project(grid, launch, Some(command), project, window, cx);
         let focused = pane.id;
         let tab = WorkspaceTab::Terminal {
             tree: SplitTree::leaf(pane.id),

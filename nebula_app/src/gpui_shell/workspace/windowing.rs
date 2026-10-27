@@ -1546,6 +1546,7 @@ impl NebulaWorkspace {
             return None;
         };
         let pane_ids = panes.iter().map(|pane| pane.id).collect::<Vec<_>>();
+        self.sync_pane_groups();
         for pane_id in &pane_ids {
             self.pane_bounds.borrow_mut().remove(pane_id);
         }
@@ -1613,6 +1614,7 @@ impl NebulaWorkspace {
             self.active = at;
         }
         self.cross_window_dock = None;
+        self.sync_pane_groups();
         self.reveal_active_tab();
         self.focus_active(window, cx);
         self.sync_side_panel_to_active(true, cx);

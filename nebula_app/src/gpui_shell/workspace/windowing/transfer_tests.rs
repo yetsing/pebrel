@@ -55,6 +55,69 @@ pub(super) fn open_test_window(cx: &mut App, count: usize) -> (u64, Entity<Nebul
     (id, workspace)
 }
 
+#[cfg(windows)]
+#[gpui::test]
+fn pane_groups_survive_cross_window_docking(cx: &mut TestAppContext) {
+    use crate::gpui_shell::workspace::pane_groups::model::PaneProject;
+    use crate::platform::project_directory::ProjectDirectory;
+
+    initialize_test(cx);
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let directory = ProjectDirectory::new(a.path()).unwrap();
+    cx.update(|cx| {
+        let (_, source) = open_test_window(cx, 2);
+        let (target_id, target) = open_test_window(cx, 1);
+        let (first, moved, view) = source.update(cx, |source, cx| {
+            for tab in &mut source.tabs {
+                let WorkspaceTab::Terminal { panes, .. } = tab else { panic!() };
+                panes[0].project = Some(PaneProject::fixed(directory.clone()));
+                panes[0]
+                    .view
+                    .update(cx, |view, _| view.cwd = b.path().to_string_lossy().into_owned());
+            }
+            source.sync_pane_groups();
+            let first = source.tabs[0].primary_terminal_pane().unwrap().id;
+            let pane = source.tabs[1].primary_terminal_pane().unwrap();
+            (first, pane.id, pane.view.clone())
+        });
+        let target_pane = target.update(cx, |target, _| {
+            let WorkspaceTab::Terminal { panes, .. } = &mut target.tabs[0] else { panic!() };
+            panes[0].project = Some(PaneProject::fixed(ProjectDirectory::new(b.path()).unwrap()));
+            let id = panes[0].id;
+            target.sync_pane_groups();
+            id
+        });
+        let detached = source.update(cx, |source, _| source.detach_terminal_tab(moved).unwrap());
+        assert_eq!(source.read(cx).pane_groups.groups()[0].panes, [first]);
+        entry_by_id(target_id, cx)
+            .unwrap()
+            .handle
+            .update(cx, |_, window, cx| {
+                target.update(cx, |target, cx| {
+                    target.attach_terminal_tab(
+                        detached.tab,
+                        detached.meta,
+                        Some(DockTarget {
+                            pane: Some(target_pane),
+                            nav: nebula_split::SplitNav::Right,
+                        }),
+                        window,
+                        cx,
+                    );
+                    assert_eq!(target.tabs.len(), 1);
+                    assert_eq!(target.pane_groups.groups()[0].panes, [target_pane]);
+                    assert_eq!(target.pane_groups.groups()[1].directory, directory);
+                    assert_eq!(target.pane_groups.groups()[1].panes, [moved]);
+                    assert_eq!(target.tabs[0].focused_view().unwrap(), &view);
+                    target.close_pane(0, moved, window, cx);
+                    assert_eq!(target.pane_groups.groups().len(), 1);
+                });
+            })
+            .unwrap();
+    });
+}
+
 #[gpui::test]
 fn moving_last_tab_closes_only_source_after_transfer(cx: &mut TestAppContext) {
     initialize_test(cx);

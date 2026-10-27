@@ -1,6 +1,6 @@
 # 按工作目录分组的 Pane 会话侧栏
 
-确认时间：2026-10-27。状态：S1 数据来源核验已完成，S2 至 S6 未开始，功能尚未实现。
+确认时间：2026-10-27。状态：S1、S2 已完成，S3 至 S6 未开始；侧栏展示尚未接入。
 
 ## 目标
 
@@ -86,14 +86,15 @@ Pane、各自在做什么、谁需要处理，点击后准确切到对应 Pane�
 制定时间：2026-10-27。按 S1 → S6 顺序推进，每阶段验收通过后再进入下一阶段。
 各阶段均以本机 Windows 的本地 Shell 与 AI Agent 为对象。S1 已完成来源与缺口
 清单、夹具及实机代表样本核验；补齐 Kimi 的多行、未提交、重复、空输入和
-Runtime 提交，以及用户真实 Shell 键盘、剪贴板样本。S2 至 S6 未开始。
+Runtime 提交，以及用户真实 Shell 键盘、剪贴板样本。S2 分组模型及生命周期接线
+已完成 Windows 源码编译与针对性回归，结果见 [路线图](ROADMAP.md)；S3 至 S6 未开始。
 自用 Agent 核验范围为 Codex、OpenCode、Pi、Kimi，来源、缺口和验证边界见
 [S1 核验记录](PANE_SIDEBAR_S1.md)。
 
 | 阶段 | 依赖 | 实现范围 | 阶段交付与验收 | 状态 |
 | --- | --- | --- | --- | --- |
 | S1：确认数据来源 | 无 | 核对 Windows 本地 Pane 身份、名称、活动状态、启动目录及创建入口的项目上下文；重点验证自用 AI Agent 的用户消息与 Shell 命令来源 | 列出实际来源和缺口，区分项目固定目录、Pane 当前目录及继承归属；用代表性样本区分已提交、仅编辑、多行换行及粘贴未提交；不能把一次 Enter 或任意 hook 的 `message` 直接视为用户消息 | 已完成：来源、缺口及代表样本已核验，后续采集限制见 [S1 记录](PANE_SIDEBAR_S1.md) |
-| S2：建立 Pane 分组模型 | S1 | 基于现有 Pane ID 建立条目投影，保存项目固定目录及 Pane 归属；创建时优先使用指定或继承的项目，仅在未指定时按启动目录归组；形成稳定项目顺序 | 同目录打开项目时复用组；项目内新建和分屏继承归属；`cd` 不换组；新增、关闭 Pane 后条目正确，不因 Tab 下标或焦点变化串项 | 待开始 |
+| S2：建立 Pane 分组模型 | S1 | 基于现有 Pane ID 建立条目投影，保存项目固定目录及 Pane 归属；创建时优先使用指定或继承的项目，仅在未指定时按启动目录归组；形成稳定项目顺序 | 同目录打开项目时复用组；项目内新建和分屏继承归属；`cd` 不换组；新增、关闭 Pane 后条目正确，不因 Tab 下标或焦点变化串项 | 已完成：固定/待归属、稳定顺序及创建、复制、冷恢复、关闭和移窗接线；Windows 编译与回归通过，项目头和打开项目的界面入口留在 S3 |
 | S3：接入侧栏与创建导航 | S2 | 将终端侧栏由 Tab 平铺改为项目头和 Pane 条目；接入项目头 `＋`、“打开项目…”及全局新建终端的归属规则；支持当前 Pane 高亮，适配项目头和双行条目的滚动与命中范围 | 各创建入口按约定启动并归组；同一个 Tab 的多个 Pane 均可独立点击；跨 Tab 点击准确激活并聚焦；滚动后命中正确；设置和文档等非终端 Tab 仍有可用入口 | 待开始 |
 | S4：接入最近提交预览 | S1、S3 | 按 S1 核实的来源更新 AI 用户消息和 Shell 命令；实现占位、多行合并、两行省略及异步结果归属检查 | 新提交更新对应 Pane，未提交不更新；切换 Agent、替换对话及返回 Shell 后不串用上一种身份的预览；采集不到可靠内容时显示占位，并记录未覆盖路径 | 待开始 |
 | S5：补齐项目交互与视觉 | S3、S4 | 实现分组折叠、项目置顶、分支显示、树形连接线和间距；沿用现有主题及国际化方式 | 折叠不影响运行；置顶项靠前且组内顺序稳定；分支对应分组的固定目录；窄侧栏和长文本下仍能辨认选中项、状态和预览 | 待开始 |
@@ -105,7 +106,8 @@ Runtime 提交，以及用户真实 Shell 键盘、剪贴板样本。S2 至 S6 �
 
 | 能力 | 入口与复用方向 |
 | --- | --- |
-| Pane 所有权、创建、分屏、聚焦 | [workspace.rs](nebula_app/src/gpui_shell/workspace.rs) 中的 `TerminalPane`、`WorkspaceTab` 与 `focus_pane`；保留现有会话和分屏所有权 |
+| Pane 所有权、创建、分屏、聚焦 | [workspace.rs](nebula_app/src/gpui_shell/workspace.rs) 中的 `TerminalPane`、`WorkspaceTab` 与 `focus_pane`；创建路径已迁到 [terminal_creation.rs](nebula_app/src/gpui_shell/workspace/terminal_creation.rs)，保留现有会话和分屏所有权 |
+| 固定项目归属与分组 | [pane_groups/model.rs](nebula_app/src/gpui_shell/workspace/pane_groups/model.rs) 维护一次性项目绑定与稳定的窗口内 Pane ID 投影；[pane_groups.rs](nebula_app/src/gpui_shell/workspace/pane_groups.rs) 适配工作区生命周期；设计边界见 [归属记录](architecture/notes/nebula_app/gpui_shell/workspace/2026-10-27-pane-project-binding.md) |
 | 当前侧栏与滚动 | [sidebar.rs](nebula_app/src/gpui_shell/workspace/sidebar.rs)、[tab_scroll.rs](nebula_app/src/gpui_shell/workspace/tab_scroll.rs)；当前按 Tab 下标和固定行高计算，需要适配分组行 |
 | 名称、图标和状态 | [tab_presentation.rs](nebula_app/src/gpui_shell/workspace/tab_presentation.rs)、[tab_identity.rs](nebula_app/src/gpui_shell/terminal/view/tab_identity.rs)、[runtime.rs](nebula_app/src/gpui_shell/terminal/view/runtime.rs)；现有 Tab 展示主要读取聚焦 Pane，需要投影每个 Pane 的信息 |
 | Shell 命令与提交路径 | [view.rs](nebula_app/src/gpui_shell/terminal/view.rs) 的命令事件、[runtime.rs](nebula_app/src/gpui_shell/terminal/view/runtime.rs) 的提交路径及 [keymap.rs](nebula_app/src/gpui_shell/terminal/keymap.rs) 的按键语义；S1 同时核对手动输入和 Runtime 输入 |

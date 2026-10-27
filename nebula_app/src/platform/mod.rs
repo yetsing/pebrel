@@ -41,6 +41,7 @@ pub(crate) mod private_file;
 pub(crate) mod process;
 pub(crate) mod process_output;
 pub(crate) mod process_snapshot;
+pub(crate) mod project_directory;
 #[cfg(all(windows, feature = "gpui-shell"))]
 pub(crate) mod quick_window;
 pub(crate) mod serial_port;

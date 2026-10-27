@@ -471,6 +471,7 @@ impl NebulaWorkspace {
         // 两个原本独立的 tab 合并后，旧广播范围已经失真；显式关闭，避免
         // 用户下一次击键意外扩散到刚并入的 pane。
         *broadcast = false;
+        self.sync_pane_groups();
         self.focus_active(window, cx);
         cx.notify();
     }

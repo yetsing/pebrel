@@ -182,4 +182,14 @@ fn header_drag_exchanges_existing_views_and_escape_cancels(cx: &mut TestAppConte
         assert!(workspace.pane_drag.is_none());
         assert_eq!(workspace.tabs.len(), 2);
     });
+    #[cfg(windows)]
+    window.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            let before = workspace.pane_groups.groups()[0].panes.clone();
+            workspace.detach_pane_to_new_tab(0, ids[1], window, cx);
+            assert_eq!(workspace.tabs.len(), 3);
+            assert_eq!(workspace.active_terminal_pane_id(), Some(ids[1]));
+            assert_eq!(workspace.pane_groups.groups()[0].panes, before);
+        });
+    });
 }

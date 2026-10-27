@@ -153,6 +153,13 @@ impl NebulaWorkspace {
             return;
         };
         let meta = self.meta(ix);
+        let projects = tree
+            .leaves()
+            .iter()
+            .map(|id| {
+                panes.iter().find(|pane| pane.id == *id).and_then(|pane| pane.project.clone())
+            })
+            .collect::<Vec<_>>();
         let layout = crate::gpui_shell::session_restore::layout_from_tree(tree, &|id| {
             let pane = panes.iter().find(|pane| pane.id == id).expect("split leaf owns a pane");
             let view = pane.view.read(cx);
@@ -190,7 +197,7 @@ impl NebulaWorkspace {
         }
         let position = nebula_settings::RuntimeSettings::load().new_tab_position;
         let at = new_tab_insert_index(position, self.active, self.tabs.len());
-        if self.restore_tab_at(&duplicate, false, at, window, cx) {
+        if self.restore_tab_at_with_projects(&duplicate, false, at, &projects, window, cx) {
             self.active = at;
             self.reveal_active_tab();
             self.focus_active(window, cx);

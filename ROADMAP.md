@@ -5,32 +5,51 @@
 
 ## 当前需求（2026-10-27）
 
-- 待实现：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
+- 进行中：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
   命令行与 AI Agent，macOS、Linux、WSL、SSH 暂不纳入实现与验收。
   一个条目对应一个 Pane；打开项目按所选目录建组，项目内新建和分屏继承归属，
   未指定项目归属的新终端按启动目录归组。AI Agent 预览最近一次已提交的用户消息，Shell 预览
   最近一次已提交的命令。S1 数据来源核验已完成：来源与缺口清单、夹具、
   四种 Agent 的原生用户消息及用户真实 Shell 键盘/剪贴板代表样本均已核对。
   采集接线、会话绑定、Kimi hook/队列和 Runtime 提交边界等缺口留在 S4、S6
-  实施与验收，不能据此视为预览已实现。Rust 原生测试因缺少 GPUI fork 缓存
-  未运行；S2 至 S6 未开始。见
-  [S1 核验记录](PANE_SIDEBAR_S1.md)。
+  实施与验收，不能据此视为预览已实现。S2 已完成 Pane ID 投影、固定/待归属、
+  创建继承、稳定顺序和生命周期接线；GPUI 依赖缓存已补齐，当前源码编译与针对性
+  Rust/GPUI 测试通过。S3 至 S6 未开始，侧栏展示及项目创建导航尚未接入。见
+  [S1 核验记录](PANE_SIDEBAR_S1.md) 与
+  [项目归属设计](architecture/notes/nebula_app/gpui_shell/workspace/2026-10-27-pane-project-binding.md)。
   完整范围、实现路线与验收标准见
   [侧栏功能需求](PANE_SIDEBAR_REQUIREMENTS.md)。
 
 ## 最近完成
 
+- 2026-10-27 19:04：完成 Pane 侧栏 S2。Windows 本地 Pane 以固定目录分组，
+  显式/继承项目优先；未知目录保留待归属，首个有效 cwd 固定后不随 `cd` 改组。
+  分屏、全局新建、AI fork、内存复制、拆 Tab、停靠与移窗保留归属；关闭清理投影，
+  冷恢复按恢复后的初始目录归组，组和 Pane 保持出现顺序。未新增依赖或持久化字段，
+  创建逻辑迁至独立模块，工作区根文件缩至 2495 行。S3 至 S6 未开始，见
+  [侧栏功能需求](PANE_SIDEBAR_REQUIREMENTS.md#实现路线表)。
 - 2026-10-27 16:04：完成 Pane 侧栏 S1 数据来源核验，补齐用户真实 Shell
   键盘、剪贴板、清空与空 Enter，以及 Kimi 未提交粘贴、多行、重复、空输入和
   Runtime 自动提交样本。固定目录、当前目录与继承归属及四种 Agent 的来源、
-  缺口和后续约束已记录在 [S1 核验报告](PANE_SIDEBAR_S1.md)。S2 至 S6 未开始；
-  未修改产品代码，所有测试 Pane 已关闭，原有会话保留。
+  缺口和后续约束已记录在 [S1 核验报告](PANE_SIDEBAR_S1.md)。该阶段未修改产品代码，
+  所有测试 Pane 已关闭，原有会话保留。
 - 2026-10-27 06:37：明确项目头新建会话、当前 Pane 分屏、“打开项目…”及全局
   新建终端的入口和归属规则，同步实现路线、验收标准及 Windows 本机范围，见
   [侧栏功能需求](PANE_SIDEBAR_REQUIREMENTS.md#实现路线表)；全部实现阶段待开始。
 
 ## 最近验证
 
+- 2026-10-27 19:11：Windows 执行 `cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked`
+  通过；启用 `gpui-test-support` 的 `pane_groups` 阶段测试 12 项通过，目录身份、复制、
+  恢复、Pane 头部及跨窗相关回归 23 项通过（其中 1 项与阶段测试重叠）。实际验证当前
+  源码中的 cwd 订阅、关闭后的旧事件、混合项目复制、拆 Tab、停靠及移窗路径，未把
+  已安装旧版 Runtime 当作 S2 验证。`cargo test -p nebula --test file_line_budget --locked`
+  编译产品二进制并通过 2 项行数测试；设置测试 103 项通过，国际化合同 24 项通过、
+  1 项忽略，架构规则测试 52 项通过、3 项跳过。Python 3.12 架构检查以 `f03461ba`
+  为本地基线，1162 个源文件、10 个 crate 通过。新增 Rust 模块格式、64 个本地文档链接、
+  阶段状态和 `git diff --check` 通过。全仓 `cargo fmt --all -- --check` 仍因 1017 个
+  既有源码文件的 CRLF 换行失败，未格式化无关文件。编译存在既有警告与 ConPTY
+  辅助文件部署提示；本次未打包发布，也未验收 S3 侧栏视觉。
 - 2026-10-27 16:31：提交前使用 Python 3.12.13 执行架构检查，1156 个源文件、
   10 个 crate 通过；核对 S1 已完成、S2 至 S6 未开始的文档状态及本地链接，
   新增文案格式与 `git diff --check` 均通过。提交范围为 S1 核验文档、进度同步

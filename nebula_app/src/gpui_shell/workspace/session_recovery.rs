@@ -122,6 +122,18 @@ impl NebulaWorkspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        self.restore_tab_at_with_projects(tab, resume_ai, at, &[], window, cx)
+    }
+
+    pub(super) fn restore_tab_at_with_projects(
+        &mut self,
+        tab: &crate::session::TabSession,
+        resume_ai: bool,
+        at: usize,
+        projects: &[Option<super::pane_groups::model::PaneProject>],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
         use crate::session::{LaunchSession, LayoutSession};
 
         let layout = tab.layout.clone().unwrap_or(LayoutSession::Pane {
@@ -165,7 +177,14 @@ impl NebulaWorkspace {
                 },
                 _ => Self::terminal_launch_from_session(&launch_session, local_cwd),
             };
-            let mut pane = self.new_pane(grid, launch, None, window, cx);
+            let mut pane = self.new_pane_for_project(
+                grid,
+                launch,
+                None,
+                projects.get(index).cloned().flatten(),
+                window,
+                cx,
+            );
             pane.custom_name = custom_name.as_deref().and_then(rename::normalized_name);
             if !matches!(launch_session, LaunchSession::Default) {
                 pane.view.update(cx, |view, _| view.session_launch = launch_session);
