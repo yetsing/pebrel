@@ -20,6 +20,7 @@ const RETRY_AFTER: Duration = Duration::from_secs(300);
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct Target {
+    program: String,
     distro: Option<String>,
     user: Option<String>,
 }
@@ -27,6 +28,7 @@ struct Target {
 impl Target {
     fn from_shell(shell: &tty::Shell) -> Option<Self> {
         crate::shell_detect::is_wsl_launcher(shell.program()).then(|| Self {
+            program: shell.program().to_owned(),
             distro: crate::shell_detect::wsl_launch_distro(shell.program(), shell.args())
                 .map(str::to_owned),
             user: crate::shell_detect::wsl_launch_user(shell.program(), shell.args())
@@ -35,7 +37,8 @@ impl Target {
     }
 
     fn command(&self) -> Command {
-        let mut command = Command::new("wsl.exe");
+        // Keep the pane's selected launcher, including test doubles and custom paths.
+        let mut command = Command::new(&self.program);
         if let Some(distro) = &self.distro {
             command.args(["--distribution", distro]);
         }
@@ -141,7 +144,11 @@ fn worker() -> Option<&'static mpsc::SyncSender<Target>> {
 }
 
 pub(crate) fn setup_cli(distro: &str, user: Option<&str>, remove: bool) -> i32 {
-    let target = Target { distro: Some(distro.into()), user: user.map(str::to_owned) };
+    let target = Target {
+        program: "wsl.exe".into(),
+        distro: Some(distro.into()),
+        user: user.map(str::to_owned),
+    };
     match target.install(if remove { Action::Remove } else { Action::Install }) {
         Ok(()) => {
             println!(
@@ -180,6 +187,7 @@ mod tests {
         );
         let target = Target::from_shell(&shell).unwrap();
         let command = target.command();
+        assert_eq!(command.get_program(), shell.program());
         let args: Vec<_> =
             command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect();
         assert_eq!(
@@ -200,5 +208,33 @@ mod tests {
         // Same detector as every other WSL rule: an unquoted spaced path is still WSL.
         let spaced = tty::Shell::new(r"C:\Program Files\WSL\wsl.exe".into(), vec![]);
         assert!(Target::from_shell(&spaced).is_some());
+        assert_eq!(Target::from_shell(&spaced).unwrap().command().get_program(), spaced.program());
+    }
+
+    #[test]
+    fn missing_pane_launcher_never_falls_back_to_system_wsl() {
+        let directory = tempfile::tempdir().unwrap();
+        let program = directory.path().join("missing/wsl.exe");
+        let shell = tty::Shell::new(
+            program.to_string_lossy().into_owned(),
+            vec!["-d".into(), "FrozenDistro".into(), "-u".into(), "worker".into()],
+        );
+        let target = Target::from_shell(&shell).unwrap();
+        // Fail before spawning on regressions: never invoke the host's real WSL.
+        assert_eq!(target.command().get_program(), program.as_os_str());
+        let result = crate::platform::process_output::read_with_input(
+            target.command(),
+            b"probe",
+            Duration::from_secs(1),
+            MAX_OUTPUT,
+            &|| false,
+        );
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+        let other = tty::Shell::new("wsl.exe".into(), shell.args().to_vec());
+        assert_ne!(
+            target,
+            Target::from_shell(&other).unwrap(),
+            "launcher identity belongs to the setup cache key"
+        );
     }
 }

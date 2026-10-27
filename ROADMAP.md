@@ -5,6 +5,13 @@
 
 ## 当前需求（2026-10-27）
 
+- 待修复：Windows 通用后台子进程在挂起创建与专属 Job 接管之间仍有父进程退出窗口。
+  本次已修复 WSL 测试绕过假启动器的隔离缺陷，未改造该通用创建路径；现场证据与范围见
+  [WSL 启动器隔离记录](architecture/notes/nebula_app/platform/wsl_hooks/2026-10-27-launcher-isolation.md)。
+- Windows 分支便携包：已配置 `feature/moni-one` 推送自动构建与手动触发入口，
+  独立上传 Windows x64 ZIP 到 Actions Artifacts，供后续人工验证。当前仅完成本地
+  工作流和合同校验；首次远端构建及 ZIP 产物待推送后核验。手动入口的默认分支
+  要求和下载方式见 [构建指南](docs/windows-portable-build.md)。
 - 进行中：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
   命令行与 AI Agent，macOS、Linux、WSL、SSH 暂不纳入实现与验收。
   一个条目对应一个 Pane；打开项目按所选目录建组，项目内新建和分屏继承归属，
@@ -22,6 +29,16 @@
 
 ## 最近完成
 
+- 2026-10-27 20:31：修复 WSL 复制测试间接启动真实系统 WSL 的隔离缺陷。Hook 安装与
+  来宾 Shell 探测均沿用 Pane 配置的启动器，缓存按启动器、发行版和用户区分；不存在的
+  测试启动器返回 NotFound，不再隐式切换到系统 `wsl.exe`。显式 `setup-ai --wsl`
+  维持原默认入口，补齐路径、参数和失败回归。旧测试遗留 WSL 已精确清理，原 PowerShell
+  随管道关闭自行退出，原后台任务返回 0；未结束用户终端或 WSL 发行版。
+- 2026-10-27 19:23：新增 `Windows portable ZIP` 工作流，`feature/moni-one` 推送后
+  自动构建 Windows x64 便携包，同分支保留最新运行，并配置 `workflow_dispatch`。
+  复用现有控制台运行库、GPUI 产品构建、打包新鲜度与清单检查；artifact 以提交 SHA
+  标识并保留 14 天。正式发布工作流和资产集合不变，README 已加入
+  [分支构建指南](docs/windows-portable-build.md)入口，实际远端运行尚未验证。
 - 2026-10-27 19:04：完成 Pane 侧栏 S2。Windows 本地 Pane 以固定目录分组，
   显式/继承项目优先；未知目录保留待归属，首个有效 cwd 固定后不随 `cd` 改组。
   分屏、全局新建、AI fork、内存复制、拆 Tab、停靠与移窗保留归属；关闭清理投影，
@@ -39,6 +56,21 @@
 
 ## 最近验证
 
+- 2026-10-27 20:33：Windows 的 Hook、来宾探测、复制、恢复、Pane 拖动和跨窗回归共
+  33 项通过，Cargo 命令实际以退出码 0 结束，未新增 WSL 遗留进程。两项新增回归在启动前
+  检查程序路径，并验证缺失启动器返回 NotFound，旧实现会在调用真实 WSL 前失败。
+  `cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked` 通过；
+  原 WSL 复制用例连续独立运行 3 轮，每轮实际返回 0，未产生 WSL 遗留进程。
+  架构检查、两个平台模块格式检查通过；架构规则测试 52 项通过、3 项跳过，复用原样
+  Rust 行数测试二进制读取当前工作树，2 项通过。精确核对命令与父进程身份后，结束旧测试产生的
+  挂起 WSL；原 PowerShell 随即自然退出，会话 99806 返回 0，确认其占用输出管道是直接原因。
+  通用 Job 创建/接管竞态尚未修复；实际 WSL 安装与真实来宾集成未作为本次测试执行。
+- 2026-10-27 19:24：Windows 使用 actionlint 1.7.12 检查新增工作流，通过；PowerShell
+  解析打包步骤，通过。用桩程序执行实际步骤，成功、读取版本失败、打包失败 3 个场景
+  均符合预期，失败时不写出成功元数据。CI 原生入口、缓存、Stable/Preview 打包及
+  Git 属性合同共 76 项通过、1 项跳过。Python 3.12 架构检查以 `95f69dd7` 为本地基线通过，
+  1162 个源文件、10 个 crate；`git diff --check` 通过。本次仅修改构建配置、合同测试
+  和使用文档，未提交、推送或触发 GitHub Actions，未生成真实便携 ZIP。
 - 2026-10-27 19:11：Windows 执行 `cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked`
   通过；启用 `gpui-test-support` 的 `pane_groups` 阶段测试 12 项通过，目录身份、复制、
   恢复、Pane 头部及跨窗相关回归 23 项通过（其中 1 项与阶段测试重叠）。实际验证当前

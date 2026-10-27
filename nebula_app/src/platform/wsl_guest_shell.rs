@@ -26,6 +26,7 @@ const PROBE_SCRIPT: &str = include_str!("../../res/shell/wsl-guest-probe.sh");
 /// The guest a launch enters: the spawn-time distribution and the explicit user.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Target {
+    program: String,
     distro: String,
     user: Option<String>,
 }
@@ -34,7 +35,8 @@ impl Target {
     /// The script goes on stdin; the bootstrap travels through `WSLENV` `/p`, the
     /// translation the pane uses, so the guest tests the path it will receive.
     fn command(&self, bootstrap: &Path) -> Command {
-        let mut command = shell_detect::wsl_exec_command(&self.distro, self.user.as_deref());
+        let mut command =
+            shell_detect::wsl_exec_command_with(&self.program, &self.distro, self.user.as_deref());
         command.args(["sh", "-s"]);
         command.env("NEBULA_ZSH_INTEGRATION", bootstrap);
         command.env("WSLENV", "NEBULA_ZSH_INTEGRATION/p");
@@ -91,7 +93,8 @@ pub(crate) fn takes_zsh_bootstrap(
     let Some(distro) = options.spawn_distro(crate::platform::shell::default_wsl_distro) else {
         return false;
     };
-    let target = Target { distro, user: options.user.map(str::to_owned) };
+    let target =
+        Target { program: program.to_owned(), distro, user: options.user.map(str::to_owned) };
     guest(&target).is_some_and(|shell| shell.readable && command_zsh.unwrap_or(shell.login_zsh))
 }
 
@@ -223,7 +226,11 @@ mod tests {
     fn completed_probe_entries_stay_bounded() {
         let mut entries = HashMap::new();
         for index in 0..MAX_GUEST_TARGETS + 8 {
-            let target = Target { distro: format!("fixture-{index}"), user: None };
+            let target = Target {
+                program: "wsl.exe".into(),
+                distro: format!("fixture-{index}"),
+                user: None,
+            };
             assert!(make_room_for_probe(&mut entries, &target, Instant::now()));
             entries.insert(
                 target,
@@ -242,14 +249,19 @@ mod tests {
         let mut entries = HashMap::new();
         for index in 0..MAX_GUEST_TARGETS {
             entries.insert(
-                Target { distro: format!("fixture-{index}"), user: None },
+                Target {
+                    program: "wsl.exe".into(),
+                    distro: format!("fixture-{index}"),
+                    user: None,
+                },
                 Entry { verdict: Arc::default(), started: Instant::now() },
             );
         }
-        let next = Target { distro: "next".into(), user: None };
+        let next = Target { program: "wsl.exe".into(), distro: "next".into(), user: None };
         assert!(!make_room_for_probe(&mut entries, &next, Instant::now()));
         assert_eq!(entries.len(), MAX_GUEST_TARGETS);
-        let completed = Target { distro: "fixture-0".into(), user: None };
+        let completed =
+            Target { program: "wsl.exe".into(), distro: "fixture-0".into(), user: None };
         entries[&completed].verdict.set(Some(GuestShell::default())).unwrap();
         assert!(make_room_for_probe(&mut entries, &next, Instant::now()));
         assert!(!entries.contains_key(&completed));
@@ -263,18 +275,22 @@ mod tests {
         let started = Instant::now();
         for index in 0..MAX_GUEST_TARGETS {
             entries.insert(
-                Target { distro: format!("fixture-{index}"), user: None },
+                Target {
+                    program: "wsl.exe".into(),
+                    distro: format!("fixture-{index}"),
+                    user: None,
+                },
                 Entry {
                     verdict: Arc::new(OnceLock::from(None)),
                     started: started + Duration::from_secs(index as u64),
                 },
             );
         }
-        let next = Target { distro: "next".into(), user: None };
+        let next = Target { program: "wsl.exe".into(), distro: "next".into(), user: None };
         // 向前推进受控时刻，不从 Instant 减去五分钟，避免测试依赖机器启动时长。
         let now = started + Duration::from_secs(MAX_GUEST_TARGETS as u64);
         assert!(!make_room_for_probe(&mut entries, &next, now));
-        let expired = Target { distro: "fixture-0".into(), user: None };
+        let expired = Target { program: "wsl.exe".into(), distro: "fixture-0".into(), user: None };
         assert!(make_room_for_probe(&mut entries, &next, started + RETRY_AFTER));
         assert!(!entries.contains_key(&expired));
     }
@@ -288,7 +304,14 @@ mod tests {
             None
         });
         let target = target.expect("a named guest is probed");
-        assert_eq!(target, Target { distro: "Debian custom".into(), user: Some("alice".into()) });
+        assert_eq!(
+            target,
+            Target {
+                program: "wsl.exe".into(),
+                distro: "Debian custom".into(),
+                user: Some("alice".into())
+            }
+        );
         let command = target.command(&bootstrap());
         let got: Vec<_> =
             command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect();
@@ -302,6 +325,33 @@ mod tests {
                 ("WSLENV".as_ref(), Some("NEBULA_ZSH_INTEGRATION/p".as_ref())),
             ]
         );
+    }
+
+    #[test]
+    fn missing_pane_launcher_does_not_start_a_system_wsl_probe() {
+        let directory = tempfile::tempdir().unwrap();
+        let program = directory.path().join("missing/wsl.exe");
+        let mut target = None;
+        takes_zsh_bootstrap(
+            program.to_str().unwrap(),
+            &args(&["-d", "FrozenDistro", "-u", "worker"]),
+            "",
+            |guest| {
+                target = Some(guest.clone());
+                None
+            },
+        );
+        let target = target.unwrap();
+        let command = target.command(&bootstrap());
+        assert_eq!(command.get_program(), program.as_os_str());
+        let result = crate::platform::process_output::read_with_input(
+            command,
+            b"probe",
+            Duration::from_secs(1),
+            MAX_OUTPUT,
+            &|| false,
+        );
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
     }
 
     #[test]

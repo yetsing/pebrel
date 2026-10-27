@@ -84,6 +84,29 @@ class NativeSuiteTests(unittest.TestCase):
                          {"push", "workflow_dispatch"})
         self.assertIn('tags: ["v*.*.*"]', stable_events)
 
+    def test_windows_branch_package_is_artifact_only_and_uses_the_product_packager(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/windows-portable.yml").read_text(encoding="utf-8")
+        events = workflow.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(set(re.findall(r"^  ([a-z_]+):", events, re.M)),
+                         {"push", "workflow_dispatch"})
+        self.assertIn("branches: [feature/moni-one]", events)
+        self.assertNotIn("paths:", events)
+        self.assertIn("contents: read", workflow)
+        for forbidden in ("contents: write", "secrets.", "release.yml", "gh release", "-SkipBuild", "-AllowStale"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, workflow)
+        self.assertLess(workflow.index("prepare-windows-runtime.ps1"),
+                        workflow.index("./scripts/package-release.ps1"))
+        self.assertIn("-Configuration release -Architecture x64", workflow)
+        self.assertIn("persist-credentials: false", workflow)
+        self.assertIn("name: Pebrel-windows-x64-${{ github.sha }}", workflow)
+        upload = workflow.split("- name: Upload Windows portable ZIP", 1)[1]
+        self.assertIn("steps.package.outputs.version", upload)
+        self.assertIn("if-no-files-found: error", upload)
+        self.assertNotIn("always()", upload)
+        self.assertNotIn("continue-on-error", workflow)
+
     def test_every_pr_and_merge_group_runs_without_path_exclusions(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/linux-lua.yml").read_text(encoding="utf-8")

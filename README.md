@@ -283,6 +283,8 @@ The internal Cargo package is still named `nebula`; the application and command
 are `pebrel`. GPUI is the product interface. The older renderer is available only
 through the explicit `legacy-shell` feature.
 
+For Windows branch artifacts from GitHub Actions, see the [portable ZIP build guide](docs/windows-portable-build.md).
+
 ## Contact
 
 Discord: [discord.gg/VFn4rcxmhn](https://discord.gg/VFn4rcxmhn)

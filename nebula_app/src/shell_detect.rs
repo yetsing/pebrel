@@ -775,7 +775,16 @@ pub struct WslCwd {
 /// reported cwd. Append arguments through `Command::arg`/`args`; never join them
 /// into shell text.
 pub(crate) fn wsl_exec_command(distro: &str, user: Option<&str>) -> std::process::Command {
-    let mut command = std::process::Command::new("wsl.exe");
+    wsl_exec_command_with("wsl.exe", distro, user)
+}
+
+/// Guest probes must use the same launcher selected for the pane.
+pub(crate) fn wsl_exec_command_with(
+    program: &str,
+    distro: &str,
+    user: Option<&str>,
+) -> std::process::Command {
+    let mut command = std::process::Command::new(program);
     command.args(["-d", distro]);
     if let Some(user) = user {
         command.args(["-u", user]);

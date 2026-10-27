@@ -246,6 +246,8 @@ cargo build --release --locked -p nebula --bin pebrel --features gpui-shell
 内部 Cargo 包名仍为 `nebula`，应用与命令名为 `pebrel`。GPUI 是正式产品界面，
 旧渲染器仅在显式启用 `legacy-shell` 时使用。
 
+通过 GitHub Actions 构建 Windows 分支便携包，见 [便携 ZIP 构建指南](docs/windows-portable-build.md)。
+
 ## 联系方式
 
 Discord：[discord.gg/VFn4rcxmhn](https://discord.gg/VFn4rcxmhn)
