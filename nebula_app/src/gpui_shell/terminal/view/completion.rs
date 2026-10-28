@@ -183,6 +183,7 @@ impl TerminalView {
             crate::ai_agents::AgentKind::parse_command(&self.suggest.last_committed)
         {
             self.running_program = Some(agent.slug().to_owned());
+            self.refresh_input_preview(cx);
             self.agent_activity.begin_command(true);
             self.command_started = Some(std::time::Instant::now());
             cx.emit(TerminalViewEvent::TitleChanged);

@@ -16,7 +16,9 @@ impl AiHookEvent {
     fn stream_key(&self, pane: Option<u64>) -> AiHookStreamKey {
         AiHookStreamKey {
             source: self.source.clone(),
-            session_id: if self.source == "pi" && self.bridge_instance.is_some() {
+            session_id: if matches!(self.source.as_str(), "pi" | "opencode")
+                && self.bridge_instance.is_some()
+            {
                 self.bridge_instance.clone()
             } else {
                 self.session_id.clone()
@@ -196,6 +198,7 @@ impl AiHookEventGate {
         state.last_received_sequence = state.last_received_sequence.max(event.received_sequence);
         state.last_fingerprint = use_fingerprint.then_some((fingerprint, event.received_at_ms));
         state.lifecycle = match event.kind {
+            AiHookKind::UserMessage => state.lifecycle,
             AiHookKind::SessionStart | AiHookKind::PromptSubmit | AiHookKind::ToolComplete => {
                 StreamLifecycle::Active
             },
@@ -212,6 +215,7 @@ fn event_fingerprint(event: &AiHookEvent) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     event.kind.hash(&mut hasher);
     event.message.hash(&mut hasher);
+    event.user_message.hash(&mut hasher);
     event.answer.hash(&mut hasher);
     event.background_tasks.hash(&mut hasher);
     if let Some(attention) = event.attention.as_ref() {

@@ -196,6 +196,22 @@ pub(super) fn parse_envelope(bytes: &[u8]) -> Option<AiHookEvent> {
         // Kimi's explicit waiting and result events share the pane lifecycle.
         // Heartbeats and background notifications never request user input.
         "kimi" => match payload.get("hook_event_name").and_then(Value::as_str) {
+            Some("UserPromptQueued")
+                if session_id.is_some()
+                    && payload["prompt_id"].as_str().is_some_and(|id| !id.is_empty())
+                    && payload["queue_length"].as_u64().is_some() =>
+            {
+                (AiHookKind::UserMessage, None)
+            },
+            Some("TurnStarted")
+                if payload["origin_kind"] == "user"
+                    && payload
+                        .get("agent_id")
+                        .and_then(Value::as_str)
+                        .is_none_or(|id| id == "main") =>
+            {
+                (AiHookKind::UserMessage, None)
+            },
             Some("SessionStart") => (AiHookKind::SessionStart, None),
             Some("UserPromptSubmit") => (AiHookKind::PromptSubmit, None),
             Some("Stop") | Some("Interrupt") => (AiHookKind::TurnDone, None),
@@ -210,6 +226,7 @@ pub(super) fn parse_envelope(bytes: &[u8]) -> Option<AiHookEvent> {
         // embedded plugin in `ensure_opencode_plugin`), so this side stays
         // decoupled from opencode's evolving SDK event schema.
         "opencode" | "pi" | "omp" => match payload.get("kind").and_then(Value::as_str) {
+            Some("user-message") => (AiHookKind::UserMessage, None),
             Some("session-start") => (AiHookKind::SessionStart, None),
             Some("prompt") => (AiHookKind::PromptSubmit, None),
             Some("tool-complete") => (AiHookKind::ToolComplete, None),
@@ -308,6 +325,11 @@ pub(super) fn parse_envelope(bytes: &[u8]) -> Option<AiHookEvent> {
         .map(std::path::PathBuf::from)
         .filter(|path| path.is_absolute());
     Some(AiHookEvent {
+        user_message: submitted_text(&source, kind, &payload),
+        user_message_queued: source == "kimi" && payload["hook_event_name"] == "UserPromptQueued",
+        user_message_reset: source == "pi"
+            && matches!(kind, AiHookKind::SessionStart | AiHookKind::PromptSubmit)
+            && payload["preview_reset"] == true,
         codex_hooks,
         remote_process: None,
         turn_id,
@@ -344,6 +366,29 @@ pub(super) fn parse_envelope(bytes: &[u8]) -> Option<AiHookEvent> {
         background_tasks,
         attention,
     })
+}
+
+fn submitted_text(source: &str, kind: AiHookKind, payload: &Value) -> Option<String> {
+    if kind != AiHookKind::UserMessage
+        && !(source == "pi" && matches!(kind, AiHookKind::PromptSubmit | AiHookKind::SessionStart))
+    {
+        return None;
+    }
+    let value = if source == "kimi" { &payload["prompt"] } else { &payload["user_message"] };
+    let text = if let Some(text) = value.as_str() {
+        text.to_owned()
+    } else if source == "kimi" {
+        value
+            .as_array()?
+            .iter()
+            .filter(|part| part["type"] == "text")
+            .filter_map(|part| part["text"].as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        return None;
+    };
+    (!text.trim().is_empty() && text.len() <= 16 * 1024).then_some(text)
 }
 
 fn unix_time_ms() -> u64 {

@@ -4,6 +4,8 @@ use super::*;
 use crate::platform::project_directory::ProjectDirectory;
 
 mod actions;
+#[cfg(all(feature = "gpui-test-support", debug_assertions))]
+mod qa;
 mod view;
 
 pub(super) struct SidebarState {

@@ -132,6 +132,10 @@ impl TerminalView {
     /// the primary edge; the cached-prompt path calls the same reset so the two
     /// lifecycle routes cannot drift apart.
     pub(super) fn clear_foreground_agent_state(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.runtime_chat_agent().is_some() {
+            self.input_preview = Default::default();
+            cx.emit(TerminalViewEvent::PreviewChanged);
+        }
         if let Some(session) = &self.session {
             session.term.lock().set_redraw_anchor_enabled(false);
         }

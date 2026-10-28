@@ -13,6 +13,7 @@ pub(super) mod cursor;
 mod cwd_report;
 mod editor;
 mod image_paste;
+mod input_preview;
 mod layout;
 mod native_clipboard;
 #[cfg(all(test, feature = "gpui-test-support"))]
@@ -210,6 +211,7 @@ fn ui_language() -> crate::display::UiLanguage {
 
 /// 终端视图对宿主（Panel/Workspace）暴露的状态变化。
 pub enum TerminalViewEvent {
+    PreviewChanged,
     /// OSC 标题变化，宿主应刷新 Tab 标题。
     TitleChanged,
     /// Newly confirmed native recovery metadata must reach a checkpoint promptly.
@@ -426,6 +428,7 @@ pub struct TerminalView {
     /// Hook-reported identity for exact resume/fork. Process/title inference is
     /// never accepted here because a wrong id would continue the wrong chat.
     pub ai_session: Option<crate::display::AiSessionIdentity>,
+    input_preview: input_preview::Preview,
     /// A hook is not guaranteed to be present when a pane starts. The Codex
     /// rollout probe runs in the background and uses this generation to reject
     /// a result from a previous foreground command.
@@ -832,6 +835,7 @@ impl TerminalView {
             },
             TermEvent::Bell => self.on_bell(cx),
             TermEvent::UserVar { name, value } => {
+                self.preview_shell_report(&name, &value, cx);
                 if name == "pebrel_cmd_prompt"
                     && value == "1"
                     && self.suggest.suggest_env.is_this_machine()

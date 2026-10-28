@@ -3,7 +3,7 @@ use crate::i18n::Message;
 use gpui::{ObjectFit, StyledImage as _, img};
 
 const HEADER_HEIGHT: f32 = 32.0;
-const SESSION_HEIGHT: f32 = 58.0;
+const SESSION_HEIGHT: f32 = 74.0;
 const GAP: f32 = 3.0;
 
 struct TabPreview(SharedString);
@@ -387,12 +387,21 @@ impl NebulaWorkspace {
             )
             .child(
                 div()
+                    .debug_selector(move || format!("sidebar-pane-preview-{id}"))
                     .pl(px(25.0))
                     .w_full()
-                    .truncate()
+                    .h(px(32.0))
+                    .overflow_hidden()
+                    .line_clamp(2)
+                    .text_ellipsis()
                     .text_size(px(11.0))
+                    .line_height(px(16.0))
                     .text_color(theme.muted_foreground)
-                    .child(language.text(Message::WorkspaceSidebarNewSession)),
+                    .child(
+                        pane.view.read(cx).submitted_preview().map(str::to_owned).unwrap_or_else(
+                            || language.text(Message::WorkspaceSidebarNewSession).to_owned(),
+                        ),
+                    ),
             );
         row.into_any_element()
     }

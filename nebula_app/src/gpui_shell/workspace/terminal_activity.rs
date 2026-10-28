@@ -25,6 +25,7 @@ impl NebulaWorkspace {
         cx: &mut Context<Self>,
     ) {
         match event {
+            TerminalViewEvent::PreviewChanged => cx.notify(),
             TerminalViewEvent::SessionIdentityChanged => {
                 if let Err(error) = windowing::save_current_window_session(
                     self.runtime_window_id,

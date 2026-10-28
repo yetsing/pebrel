@@ -8,9 +8,12 @@
 - 待修复：Windows 通用后台子进程在挂起创建与专属 Job 接管之间仍有父进程退出窗口。
   本次已修复 WSL 测试绕过假启动器的隔离缺陷，未改造该通用创建路径；现场证据与范围见
   [WSL 启动器隔离记录](architecture/notes/nebula_app/platform/wsl_hooks/2026-10-27-launcher-isolation.md)。
+- 待定位，留在 S6 输入边界验收：Codex 0.165.0 的 Runtime 多行粘贴样本中，
+  `🙂` 未进入原生用户记录；Kimi 2.3.3 的普通 Runtime prompt 自动补 Enter 曾变为正文换行，
+  需另发 Enter 才实际接受。S4 预览遵循原生接受记录，没有把接口的 submitted 回执当作提交证据。
 - Windows 分支便携包：已配置 `feature/moni-one` 推送自动构建与手动触发入口，
-  独立上传 Windows x64 ZIP 到 Actions Artifacts，供后续人工验证。当前仅完成本地
-  工作流和合同校验；首次远端构建及 ZIP 产物待推送后核验。手动入口的默认分支
+  独立上传 Windows x64 ZIP 到 Actions Artifacts。提交 `845d1f35` 的首次远端构建
+  已成功，ZIP 已下载并核对摘要、清单与程序版本；用户已确认 S3 人工验证正常。手动入口的默认分支
   要求和下载方式见 [构建指南](docs/windows-portable-build.md)。
 - 进行中：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
   命令行与 AI Agent，macOS、Linux、WSL、SSH 暂不纳入实现与验收。
@@ -18,12 +21,15 @@
   未指定项目归属的新终端按启动目录归组。AI Agent 预览最近一次已提交的用户消息，Shell 预览
   最近一次已提交的命令。S1 数据来源核验已完成：来源与缺口清单、夹具、
   四种 Agent 的原生用户消息及用户真实 Shell 键盘/剪贴板代表样本均已核对。
-  采集接线、会话绑定、Kimi hook/队列和 Runtime 提交边界等缺口留在 S4、S6
-  实施与验收，不能据此视为预览已实现。S2 已完成 Pane ID 投影、固定/待归属、
+  采集与绑定现已在 S4 接线，Runtime 输入边界与完整人工验收留在 S6。
+  S2 已完成 Pane ID 投影、固定/待归属、
   创建继承、稳定顺序和生命周期接线；GPUI 依赖缓存已补齐，当前源码编译与针对性
   Rust/GPUI 测试通过。S3 已接入 Windows 项目头、双行 Pane 条目、创建入口与精确导航；
   混合行高滚动、关闭与 Tab 拖动回归通过，并核对原生深浅主题代表窗口。
-  S4 至 S6 未开始，消息行仍显示占位，完整便携包人工验收留在 S6。见
+  用户已确认该提交的 S3 便携包人工验证正常。S4 已完成：可靠提交来源、两行预览和
+  身份/请求过期校验通过回归；四种真实 CLI 配合本地模拟模型完成隔离验收。
+  用户已明确允许 Kimi 队列占位，结束后按原生主会话恢复；CMD 和无可靠绑定时占位。
+  OpenCode 空白新会话及无 Agent PID 的同桥实例替换已补齐。S5、S6 未开始。见
   [S1 核验记录](PANE_SIDEBAR_S1.md) 与
   [项目归属设计](architecture/notes/nebula_app/gpui_shell/workspace/2026-10-27-pane-project-binding.md)。
   完整范围、实现路线与验收标准见
@@ -31,6 +37,20 @@
 
 ## 最近完成
 
+- 2026-10-28 21:56：完成 S4 最近提交预览。PowerShell 按当前 Shell token 消费完整接受文本，
+  Codex 复用原生身份及用户投影，OpenCode 按确认的用户消息或入队记录投影，Pi 按用户角色和
+  SDK 当前分支投影，Kimi 仅读取精确会话主 Agent 的原生用户回合。多行合并后两行省略，
+  身份替换、返回 Shell 和晚到请求不能串项。用户已允许 Kimi 队列占位，队列结束后恢复原生预览。
+  OpenCode 空白新会话清理和无 PID 的同桥实例切换也已修复，保留外来实例及旧序号拒绝。
+  未新增依赖或持久化字段，工作区根文件仍为 2479 行，未修改用户全局 Agent 配置。
+  来源见 [预览所有权](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-submitted-preview-ownership.md)，
+  边界见 [Kimi 队列](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-kimi-tui-queue-placeholder.md)
+  与 [OpenCode 空白会话](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-opencode-empty-conversation.md)。
+- 2026-10-28 14:21：普通推送 `feature/moni-one` 至 `yetsing/pebrel`，自动触发
+  [Windows 便携包构建](https://github.com/yetsing/pebrel/actions/runs/40640897243)，
+  提交 `845d1f35` 的构建、打包、缓存和上传均成功。产物保留至 2026-11-11，
+  本地 ZIP、解压程序和人工验收清单位于 `.tmp/windows-portable-845d1f35/`。
+  本次未创建 Release 或标签；用户随后确认该 S3 便携包人工验证正常。
 - 2026-10-28 00:02：完成 Pane 侧栏 S3。Windows 侧栏按固定项目展示每个 Pane，
   支持所选目录打开/复用项目、项目头固定目录新建、全局新建继承以及设置页的默认上下文。
   点击通过 Pane ID 激活所属 Tab 并精确聚焦，隐藏目标会退出 zoom；关闭只作用于目标 Pane。
@@ -65,7 +85,39 @@
 
 ## 最近验证
 
-- 2026-10-28 05:52：S3 提交前重新编译并执行 Windows 侧栏、分组、Pane 头部与跨窗
+- 2026-10-28 22:04：S4 提交前复核通过。实际桥接源的 Node 测试 45 项通过，架构检查、
+  本次 Rust 格式检查、68 个本地文档链接、进度记录约束及 `git diff --check` 均通过。
+  源码保持已完成验收的状态，复用 21:56 记录中的 Rust、产品 check、行数及端到端验证证据。
+  提交范围为 S4 源码、回归和受影响文档；临时日志、截图、配置及构建产物不入库。
+- 2026-10-28 21:56：S4 当前源码在 Windows 的针对性 Rust 回归 201 项通过、2 项忽略，
+  实际桥接源的 Node 测试 45 项通过。隔离调试产品运行真实 Codex 0.165.0、OpenCode 2.1.2、
+  Pi 1.3.0 和 Kimi 2.3.3，模型端使用本地模拟服务；26 项独立端到端检查通过，覆盖草稿不提升、
+  中文多行、重复消息独立接受、空 Enter、Kimi 队列占位及恢复、返回 Shell、Shell 接受命令和
+  独立 exec 排除，以及 OpenCode 新会话清理、草稿和新 ID 绑定。
+  证据在 `.tmp/pane-sidebar-s4/e2e/verification.json` 与 `verification-result.json`，
+  实例、配置、Agent 数据及模型服务均隔离；本次测试实例和服务已关闭，用户原会话未操作。
+  GPUI 产品 check、2 项 Rust 行数检查、架构检查、52 项架构规则测试（3 项跳过）、
+  本次 Rust 格式检查通过。
+  这是当前源码与实际 CLI 的 Runtime/PTY 接受链路验证，不是真实模型服务或新 ZIP 的键鼠人工验收。
+  本次未提交、推送或打包；S3 人工验收结论不替代 S6。
+- 2026-10-28 17:25：用户确认提交 `845d1f35` 的 S3 便携包人工验证正常，后续 S4
+  当前源码的 Rust 回归 196 项通过、1 项忽略，包含原生记录读取、hook 生命周期、
+  Shell 接受协议、身份/分支替换、过期结果、Kimi 队列占位、分组与跨窗回归。
+  预览排版修正后侧栏控件 8 项通过；实际桥接源的 Node 测试 44 项通过。
+  Nord/中文与 Paper/英文的原生隔离窗口均检查 220 logical px 窄侧栏、长名称、
+  两行预览及省略，按实际控件边界选择和关闭目标 Pane，两个进程实际返回 0；
+  证据位于 `.tmp/pane-sidebar-s4/`。原生预览使用测试协议注入和真实 CMD PTY，
+  不代表四种 Agent 的真实键鼠/Runtime 提交及新便携包人工验收。
+  当时的 GPUI 产品 check、2 项 Rust 行数测试、103 项设置测试、24 项国际化合同
+  （1 项忽略）、52 项架构规则测试（3 项跳过）及架构检查均通过。
+  本轮未提交、推送或重新打包，S4 当前结论见最新记录。
+- 2026-10-28 14:21：远端分支指向 `845d1f3576fe154928b565386e495fbfc97445f0`，
+  Actions 运行 `40640897243` 结论为 success；下载 artifact `12796133791`，
+  归档 SHA256 与 GitHub API 的 digest 一致，内层便携 ZIP 解压后 18 项文件清单一致。
+  包内 `pebrel.com --version` 实际返回 `Pebrel 2.3.1 (845d1f3)`，`--help` 包含
+  GPUI 产品入口。尚未启动该包的 GUI 或执行用户人工验收。Git Bash 的命名时区
+  未正确转换，上一条本轮提交前验证记录已按 Windows 北京时区校正为 13:52。
+- 2026-10-28 13:52：S3 提交前重新编译并执行 Windows 侧栏、分组、Pane 头部与跨窗
   相关回归，30 项通过，Cargo 实际返回 0；国际化合同 24 项通过、1 项忽略，
   架构规则测试 52 项通过、3 项跳过。架构检查以 `84212a44` 为本地基线通过，
   1168 个源文件、10 个 crate；40 个本地文档链接与 `git diff --check` 通过。

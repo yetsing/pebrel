@@ -111,6 +111,7 @@ impl TerminalView {
                 });
             }
         }
+        self.preview_hook(event, cx);
         self.sync_program_progress(cx);
         let status = self.agent_activity.status();
         self.confirmation.observe_waiting(status == AgentStatus::Blocked);
@@ -155,6 +156,7 @@ impl TerminalView {
         self.reconcile_shell_activity(cx);
         self.on_native_cmd_prompt(cx);
         self.probe_missing_codex_session(cx);
+        self.refresh_input_preview(cx);
         let Some(session) = &self.session else { return };
         // 远端（SSH/WSL）回合停滞对账也需要屏幕证据：hook 权威在场时
         // `allows_screen()` 为 false，但远端没有进程树这第二重证据，丢一次

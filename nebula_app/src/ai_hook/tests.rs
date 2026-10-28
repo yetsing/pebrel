@@ -500,6 +500,21 @@ fn kimi_heartbeat_and_notification_are_dropped() {
     }
 }
 
+#[test]
+fn kimi_native_user_and_queue_events_have_separate_preview_semantics() {
+    let user = parse_remote_envelope(br#"nebula-hook/1 source=kimi pane=3
+{"hook_event_name":"TurnStarted","session_id":"session_native","turn_id":2,"origin_kind":"user","prompt":[{"type":"text","text":"first\nsecond"}]}
+"#, Some(3)).unwrap();
+    assert_eq!(user.kind, AiHookKind::UserMessage);
+    assert_eq!(user.user_message.as_deref(), Some("first\nsecond"));
+    assert!(user.message.is_none());
+    let queued = parse_remote_envelope(br#"nebula-hook/1 source=kimi pane=3
+{"hook_event_name":"UserPromptQueued","session_id":"session_native","prompt_id":"msg_queue","queue_length":1,"prompt":[{"type":"text","text":"queued"}]}
+"#, Some(3)).unwrap();
+    assert_eq!(queued.kind, AiHookKind::UserMessage);
+    assert!(queued.user_message_queued);
+}
+
 /// PermissionResult 与 claude PostToolUse 同角色：权限答复后把 Blocked
 /// 拉回 Working，而不是等整个回合结束。
 #[test]

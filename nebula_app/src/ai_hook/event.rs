@@ -6,6 +6,8 @@ use super::protocol::claude_style;
 /// What a lifecycle event means for the pane's turn state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AiHookKind {
+    /// A committed user message projection; it does not change turn activity.
+    UserMessage,
     /// Agent process/session became live; usually the earliest session-id edge.
     SessionStart,
     /// The user submitted a prompt: a turn is running.
@@ -258,6 +260,10 @@ impl AttentionContext {
 /// A typed AI-CLI lifecycle event, parsed from one pipe connection.
 #[derive(Debug, Clone)]
 pub struct AiHookEvent {
+    /// Explicit user-role content, separate from notification/assistant text.
+    pub(crate) user_message: Option<String>,
+    pub(crate) user_message_queued: bool,
+    pub(crate) user_message_reset: bool,
     /// Older Claude notifications omit their type. They may signal attention
     /// during work, but cannot reopen an idle/completed turn.
     pub(super) legacy_attention: bool,

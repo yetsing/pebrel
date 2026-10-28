@@ -23,7 +23,32 @@ const MESSAGE_BYTES: usize = 48 * 1024;
 const OUTPUT_BYTES: usize = 128 * 1024;
 const MESSAGE_COUNT: usize = 160;
 
+mod kimi;
 mod remote;
+pub(crate) use kimi::latest_user as latest_kimi_user;
+
+/// Reuse the native projection and identity checks, with bounded backwards search.
+pub(crate) fn latest_user(source: Source) -> Option<String> {
+    let mut before = None;
+    let mut stamp = None;
+    for _ in 0..8 {
+        let capture = capture_file(Path::new(&source.path), before).ok()?;
+        if stamp.as_ref().is_some_and(|stamp| stamp != &capture.stamp) {
+            return None;
+        }
+        stamp = Some(capture.stamp.clone());
+        validate_source(&source.identity, &source.path, &capture.head).ok()?;
+        let (messages, cursor, _) = project(&source.identity, &capture).ok()?;
+        if let Some(message) = messages.into_iter().rev().find(|message| message.role == "user") {
+            return Some(message.text);
+        }
+        before = cursor.or_else(|| (capture.start > 0).then_some(capture.start));
+        if before.is_none() {
+            break;
+        }
+    }
+    None
+}
 
 pub(crate) enum Location {
     Local(PaneExecContext),
@@ -641,5 +666,32 @@ mod tests {
         assert!(!identity.matches(&Identity { epoch: Some(8), ..identity.clone() }));
         assert!(Identity { epoch: None, ..identity.clone() }.matches(&identity));
         assert!(capture_file(&path, Some(capture.end + 1)).is_err());
+    }
+
+    #[test]
+    fn sidebar_latest_user_searches_bounded_pages_and_validates_native_identity() {
+        let identity = identity("codex");
+        let (directory, path) = fixture(&[
+            json!({"type":"session_meta","payload":{"id":identity.session_id}}),
+            json!({"type":"event_msg","payload":{"type":"user_message","message":"older"}}),
+            json!({"type":"event_msg","payload":{"type":"item_completed","item":{"type":"UserMessage","content":[{"type":"text","text":"中文\nlatest"}]}}}),
+            json!({"type":"response_item","payload":{"type":"function_call_output","output":"x".repeat(PAGE_BYTES + 1024)}}),
+        ]);
+        let source = |identity| Source {
+            identity,
+            path: path.to_string_lossy().into_owned(),
+            cwd: String::new(),
+            location: Location::Local(PaneExecContext::from_pty_options(&Default::default())),
+        };
+        assert_eq!(latest_user(source(identity.clone())).as_deref(), Some("中文\nlatest"));
+        let mut file = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+        write!(
+            file,
+            "{{\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"partial"
+        )
+        .unwrap();
+        assert_eq!(latest_user(source(identity.clone())).as_deref(), Some("中文\nlatest"));
+        let other = Identity { session_id: "wrong-session".into(), ..identity };
+        assert!(latest_user(source(other)).is_none());
     }
 }

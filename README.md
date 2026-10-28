@@ -83,6 +83,11 @@ each agent's activity, and read its output without leaving the application.
 ### Terminals and Sessions
 
 - Sidebar or top tabs, draggable split panes, and per-pane working directories.
+- On Windows, project sidebar entries preview accepted PowerShell commands and
+  confirmed native user messages from Codex, OpenCode, Pi, and Kimi when the pane
+  has a verified source. Multiline text wraps to two lines. Missing metadata,
+  CMD input, and Kimi's pending queue show **New session**. Kimi resumes previews
+  from its main conversation after the queue finishes.
 - Saved workspace layouts and optional AI conversation restoration. On WSL and
   Linux, Codex session metadata can supply an ID when its hook has not reported one.
 - Native Windows Codex identity refreshes share a background helper with startup

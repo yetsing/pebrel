@@ -219,6 +219,8 @@ impl NebulaWorkspace {
                         cx.notify();
                     }
                     workspace.publish_tray_agents(cx);
+                    #[cfg(all(feature = "gpui-test-support", debug_assertions))]
+                    workspace.capture_sidebar_qa(cx);
                     workspace.runtime_hub.has_pending_delegation_callbacks()
                 }) else { return };
                 if retry_callbacks {

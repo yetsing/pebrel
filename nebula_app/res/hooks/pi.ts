@@ -53,6 +53,21 @@ function sessionFor(ctx: any): { session_id?: string; session_file?: string } {
 }
 
 export default async function (pi: ExtensionAPI) {
+  const userText = (message: any): string | undefined => {
+    if (message?.role !== "user") return;
+    const content = message.content;
+    const text = typeof content === "string" ? content : Array.isArray(content)
+      ? content.filter((part: any) => part.type === "text").map((part: any) => part.text).join("\n") : "";
+    return text.trim() ? text.slice(0, 4096) : undefined;
+  };
+  const branchPreview = (ctx: any) => {
+    try {
+      if (typeof ctx?.sessionManager?.getBranch !== "function") return {};
+      const branch = ctx.sessionManager.getBranch();
+      const entry = [...branch].reverse().find((entry: any) => entry.type === "message" && entry.message?.role === "user");
+      return { preview_reset: true, user_message: userText(entry?.message) };
+    } catch (_) { return { preview_reset: true }; }
+  };
   let active = false;
   let stopReason = "unknown";
   // agent_end ends one attempt; agent_settled (Pi 0.80.4+) includes retries.
@@ -60,7 +75,7 @@ export default async function (pi: ExtensionAPI) {
   let sequence = 0;
   const sequenceEpoch = BigInt(Date.now()) * 1000000n;
   const bridge_instance = randomUUID();
-  const send = (kind: "session-start" | "prompt" | "tool-complete" | "done" | "session-end", ctx?: any, result: { stop_reason?: string } = {}) => {
+  const send = (kind: "session-start" | "prompt" | "tool-complete" | "done" | "session-end", ctx?: any, result: { stop_reason?: string; user_message?: string; preview_reset?: boolean } = {}) => {
     const hook = process.env.PEBREL_HOOK_EXE ?? process.env.NEBULA_HOOK_EXE;
     if (!hook) return;
     try {
@@ -97,6 +112,16 @@ export default async function (pi: ExtensionAPI) {
     stopReason = "unknown";
     send("prompt", ctx);
   });
+  // This event contains the accepted user-role message, after input transforms.
+  // agent_start also occurs for retries and cannot supply a user preview.
+  const observedUsers = new WeakSet<object>();
+  try { pi.on("message_start", async (event, ctx) => {
+    if (event.message?.role !== "user") return;
+    const text = userText(event.message);
+    if (observedUsers.has(event.message)) return;
+    observedUsers.add(event.message);
+    send("prompt", ctx, { user_message: text, preview_reset: !text });
+  }); } catch (_) {}
   pi.on("agent_end", async (event, ctx) => {
     if (!active) return;
     const last = [...(event.messages ?? [])].reverse().find(message => message.role === "assistant");
@@ -111,8 +136,11 @@ export default async function (pi: ExtensionAPI) {
   try { pi.on("session_start", async (_event, ctx) => {
     active = false;
     stopReason = "unknown";
-    send("session-start", ctx);
+    send("session-start", ctx, branchPreview(ctx));
   }); } catch (_) {}
+  for (const event of ["session_switch", "session_fork", "session_tree"] as const) {
+    try { pi.on(event, async (_event, ctx) => send("session-start", ctx, branchPreview(ctx))); } catch (_) {}
+  }
   try { pi.on("tool_result", async (_event, ctx) => send("tool-complete", ctx)); } catch (_) {}
   try { pi.on("session_shutdown", async (_event, ctx) => {
     active = false;

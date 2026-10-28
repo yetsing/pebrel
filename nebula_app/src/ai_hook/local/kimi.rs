@@ -19,9 +19,11 @@ use crate::ai_hook::is_helper_shell_command;
 
 /// 订阅的 kimi 事件，每个一条 `[[hooks]]`。其余事件（SessionHeartbeat、
 /// Notification、PreToolUse 等）不订阅。
-const KIMI_EVENTS: [&str; 8] = [
+const KIMI_EVENTS: [&str; 10] = [
     "SessionStart",
     "UserPromptSubmit",
+    "UserPromptQueued",
+    "TurnStarted",
     "Stop",
     "Interrupt",
     "StopFailure",

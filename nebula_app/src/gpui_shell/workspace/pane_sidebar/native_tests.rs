@@ -105,6 +105,22 @@ fn native_project_sidebar() {
                     panes[0].custom_name = Some("Build and inspect the sidebar".into());
                     panes[1].custom_name = Some("检查长名称与分栏焦点".into());
                 }
+                if std::env::var("PEBREL_SIDEBAR_QA_PREVIEW").as_deref() == Ok("1") {
+                    for (index, pane) in this.tabs.iter().filter_map(|tab| {
+                        if let WorkspaceTab::Terminal { panes, .. } = tab { Some(panes) } else { None }
+                    }).flatten().enumerate() {
+                        pane.view.update(cx, |view, cx| {
+                            let token = format!("native-preview-{index}");
+                            for (name, value) in [
+                                ("pebrel_shell", token.clone()),
+                                ("pebrel_input", format!("{token}\n检查最近提交的多行消息与窄侧栏换行。\nInspect multiline messages, long names and pane navigation without shifting the close button.")),
+                            ] {
+                                view.remote_files_test_event(nebula_terminal::event::Event::UserVar { name: name.into(), value }, cx);
+                            }
+                            assert!(view.submitted_preview().is_some());
+                        });
+                    }
+                }
                 this.activate_sidebar_pane(ids[0], window, cx);
                 result = Some((workspace.clone(), ids));
                 cx.notify();

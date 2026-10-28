@@ -2,6 +2,7 @@
 // Forwards turn lifecycle to Pebrel's sidebar (icon + spinner + toasts).
 // Inert outside Pebrel (no PEBREL_HOOK_EXE or legacy alias in the environment).
 import { execFile } from "node:child_process"
+import { randomUUID } from "node:crypto"
 
 const PebrelNotify = async ({ directory, worktree }) => {
   const hook = process.env.PEBREL_HOOK_EXE ?? process.env.NEBULA_HOOK_EXE
@@ -19,8 +20,13 @@ const PebrelNotify = async ({ directory, worktree }) => {
     return turn
   }
   let sessionId = ""
+  let previewSession = ""
+  const messageParts = new Map()
+  const previewMessages = new Map()
+  let latestPreview = ""
   let sequence = 0
   const sequenceEpoch = BigInt(Date.now()) * 1000000n
+  const bridgeInstance = randomUUID()
   let sendChain = Promise.resolve()
   const WATCHDOG_MS = 3000
   const send = (obj) => {
@@ -31,6 +37,7 @@ const PebrelNotify = async ({ directory, worktree }) => {
       if (!obj.cwd && (directory || worktree)) obj.cwd = directory || worktree
       const bridgeSequence = (sequenceEpoch + BigInt(++sequence)).toString()
       obj.bridge_sequence = bridgeSequence
+      obj.bridge_instance = bridgeInstance
       if (!obj.event_id) obj.event_id = `${sessionId || "pending"}:${bridgeSequence}`
       const payload = JSON.stringify(obj)
       // Run without a shell and bound a stuck helper so it cannot block idle.
@@ -72,7 +79,27 @@ const PebrelNotify = async ({ directory, worktree }) => {
       context: request,
     })
   }
+  const userMessage = (id, messageID, text) => {
+    if (!id || !messageID || typeof text !== "string") return
+    if (!previewSession) previewSession = id
+    if (id !== previewSession) return
+    const key = `${id}:${messageID}`
+    if (previewMessages.has(key) && (previewMessages.get(key) === text || latestPreview !== key)) return
+    if (!previewMessages.has(key) && previewMessages.size >= 128) previewMessages.delete(previewMessages.keys().next().value)
+    previewMessages.set(key, text)
+    latestPreview = key
+    if (!sessionId) { sessionId = id; send({ kind: "session-start" }) }
+    if (sessionId !== id) return
+    send({ kind: "user-message", user_message: text.slice(0, 4096) })
+  }
   return {
+    userMessage,
+    selectSession(id) {
+      if (!id || id === previewSession) return
+      previewSession = id
+      sessionId = id
+      send({ kind: "session-start" })
+    },
     dispose: async () => {
       controller.abort()
       await sendChain
@@ -95,6 +122,21 @@ const PebrelNotify = async ({ directory, worktree }) => {
           turn.lastUser = info.id
           turn.active = true
           send({ kind: "prompt" })
+          if (!previewSession) previewSession = sessionId
+          const parts = messageParts.get(`${sessionId}:${info.id}`)
+          if (parts) userMessage(sessionId, info.id, [...parts.values()].join("\n"))
+        }
+      } else if (t === "message.part.updated") {
+        const part = props.part || {}
+        if (part.type !== "text" || typeof part.text !== "string" || !part.messageID || !part.sessionID) return
+        const key = `${part.sessionID}:${part.messageID}`
+        if (!messageParts.has(key) && messageParts.size >= 128) messageParts.delete(messageParts.keys().next().value)
+        const parts = messageParts.get(key) || new Map()
+        if (parts.size >= 16 && !parts.has(part.id || "text")) return
+        parts.set(part.id || "text", part.text.slice(0, 4096))
+        messageParts.set(key, parts)
+        if (turnFor(part.sessionID).lastUser === part.messageID) {
+          userMessage(part.sessionID, part.messageID, [...parts.values()].join("\n"))
         }
       } else if (t === "session.idle") {
         // Dedupe opencode's spurious idles (startup/cancel): only a turn
@@ -129,6 +171,7 @@ export default {
     const bridge = await PebrelNotify(ctx.location)
     if (!bridge.event) return
     const controller = new AbortController()
+    const children = new Set()
     const consume = (async () => {
       for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
         if (controller.signal.aborted) break
@@ -136,6 +179,21 @@ export default {
         // Reject explicitly foreign events without dropping those lifecycles.
         if (event.location && event.location.directory !== ctx.location.directory) continue
         const data = event.data
+        if (event.type === "session.created" && data.parentID) {
+          if (children.size >= 512) children.delete(children.values().next().value)
+          children.add(data.sessionID)
+        }
+        if (children.has(data.sessionID)) continue
+        if (event.type === "session.created" || event.type === "session.viewed") {
+          bridge.selectSession(data.sessionID)
+          continue
+        }
+        // V2 durably admits actual user input here; execution.started also
+        // occurs on resume/retry and carries no user text.
+        if (event.type === "session.inbox.enqueued" && data.item?.type === "user") {
+          bridge.userMessage(data.sessionID, data.inboxID, data.item.payload?.text)
+          continue
+        }
         let type
         let properties = data
         switch (event.type) {

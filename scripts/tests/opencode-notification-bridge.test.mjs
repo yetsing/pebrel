@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -11,6 +12,7 @@ import { runInNewContext } from "node:vm";
 const embedded = readFileSync(new URL("../../nebula_app/res/hooks/opencode.js", import.meta.url), "utf8");
 const code = embedded
   .replace('import { execFile } from "node:child_process"', "")
+  .replace('import { randomUUID } from "node:crypto"', "")
   .replace("export default", "const plugin =");
 
 async function bridge(enabled = true) {
@@ -18,7 +20,7 @@ async function bridge(enabled = true) {
   const handlers = await runInNewContext(`${code}\nplugin.server({ directory: '/project' });`, {
     execFile(_helper, args, _options, done) { sent.push(JSON.parse(args[1])); done(null); },
     process: { env: enabled ? { PEBREL_HOOK_EXE: "fake-helper" } : {} },
-    AbortController, setTimeout, clearTimeout,
+    AbortController, setTimeout, clearTimeout, randomUUID,
   });
   const flush = () => new Promise(setImmediate);
   return {
@@ -68,6 +70,22 @@ test("startup idle does not fabricate a completed turn", async () => {
   assert.deepEqual(b.sent.map(event => event.kind), ["session-start"]);
 });
 
+test("one bridge instance and sequence span conversation replacements", async () => {
+  const b = await bridge();
+  b.handlers.selectSession("old");
+  await new Promise(setImmediate);
+  b.handlers.selectSession("new");
+  await new Promise(setImmediate);
+  assert.deepEqual(b.sent.map(e => e.session_id), ["old", "new"]);
+  assert.ok(b.sent.every(e => /^[a-z0-9-]+$/i.test(e.bridge_instance)));
+  assert.equal(new Set(b.sent.map(e => e.bridge_instance)).size, 1);
+  assert.ok(BigInt(b.sent[1].bridge_sequence) > BigInt(b.sent[0].bridge_sequence));
+  const another = await bridge();
+  another.handlers.selectSession("separate");
+  await new Promise(setImmediate);
+  assert.notEqual(another.sent[0].bridge_instance, b.sent[0].bridge_instance);
+});
+
 test("the installed plugin is inert outside the terminal environment", async () => {
   const b = await bridge(false);
   assert.deepEqual(Object.keys(b.handlers), []);
@@ -84,12 +102,25 @@ test("the installed ESM has one default definition for V1.18.29+ and V2", async 
   assert.equal(typeof module.default.setup, "function");
 });
 
+test("V1 committed user identity gates text parts and rejects old-message replays", async () => {
+  const b = await bridge();
+  const part = (messageID, text) => ({ part: { id: `part-${messageID}`, sessionID: "main", messageID, type: "text", text } });
+  await b.emit("message.part.updated", part("draft", "not a committed message"));
+  assert.equal(b.sent.filter(e => e.user_message !== undefined).length, 0);
+  await b.emit("message.updated", prompt("main", "user-1"));
+  await b.emit("message.part.updated", part("user-1", "第一行\n第二行"));
+  await b.emit("message.updated", prompt("main", "user-2"));
+  await b.emit("message.part.updated", part("user-2", "same content"));
+  await b.emit("message.part.updated", part("user-1", "late old message"));
+  assert.deepEqual(b.sent.filter(e => e.user_message !== undefined).map(e => e.user_message), ["第一行\n第二行", "same content"]);
+});
+
 async function v2({ env = { PEBREL_HOOK_EXE: "fake helper" }, execute, timer = setTimeout } = {}) {
   const sent = [];
   const calls = [];
   const plugin = runInNewContext(`${code}\nplugin;`, {
     process: { env },
-    AbortController, setTimeout: timer, clearTimeout,
+    AbortController, setTimeout: timer, clearTimeout, randomUUID,
     execFile(helper, args, options, done) {
       calls.push({ helper, args, options });
       sent.push(JSON.parse(args[1]));
@@ -154,6 +185,22 @@ test("V2 durable execution events preserve permission context, ordering and comp
   assert(b.sent.every(e => e.cwd === "/project" && e.session_id === "main"));
   assert(b.sent.every((e, i) => !i || BigInt(e.bridge_sequence) > BigInt(b.sent[i - 1].bridge_sequence)));
   assert(b.calls.every(c => c.helper === "fake helper" && c.args[0] === "opencode"));
+});
+
+test("V2 durable user inbox records supply previews; execution and synthetic messages do not", async (t) => {
+  const b = await v2();
+  t.after(b.cleanup);
+  await b.emit("session.created", { sessionID: "main" });
+  await b.emit("session.execution.started", { sessionID: "main" });
+  assert.equal(b.sent.filter(e => e.user_message !== undefined).length, 0);
+  const user = (inboxID) => ({ sessionID: "main", inboxID, item: { type: "user", payload: { text: "重复\n消息" }, delivery: "queue" } });
+  await b.emit("session.inbox.enqueued", user("msg-1"));
+  await b.emit("session.inbox.enqueued", user("msg-1"));
+  await b.emit("session.inbox.enqueued", user("msg-2"));
+  await b.emit("session.inbox.enqueued", { sessionID: "main", inboxID: "system", item: { type: "synthetic", payload: { text: "not user" } } });
+  await b.emit("session.created", { sessionID: "child", parentID: "main" });
+  await b.emit("session.inbox.enqueued", { ...user("child-msg"), sessionID: "child" });
+  assert.deepEqual(b.sent.filter(e => e.user_message !== undefined).map(e => [e.session_id, e.user_message]), [["main", "重复\n消息"], ["main", "重复\n消息"]]);
 });
 
 test("V2 ignores other locations, startup idle and non-waiting permission events", async (t) => {

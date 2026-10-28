@@ -361,6 +361,7 @@ impl TerminalView {
             ssh_connect: None,
             ssh_connect_last_step: std::time::Instant::now(),
             ai_session: None,
+            input_preview: Default::default(),
             ai_session_probe_pending: false,
             ai_session_from_probe: false,
             ai_session_probe_epoch: 0,

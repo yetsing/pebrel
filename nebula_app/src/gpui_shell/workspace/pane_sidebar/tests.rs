@@ -97,6 +97,45 @@ fn click(window: &mut VisualTestContext, selector: impl Into<String>) {
 }
 
 #[gpui::test]
+fn accepted_multiline_preview_uses_two_lines_without_changing_navigation(cx: &mut TestAppContext) {
+    let directory = tempfile::tempdir().unwrap();
+    let (workspace, mut window) = fixture(cx);
+    let (id, view) = window.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            let id = add(workspace, directory.path(), window, cx);
+            let view =
+                workspace.tabs[workspace.tab_of_pane(id).unwrap()].focused_view().unwrap().clone();
+            (id, view)
+        })
+    });
+    let _receiver = view.update(&mut window, |view, cx| {
+        let receiver = view.install_preview_test_session();
+        for (name, value) in [
+            ("pebrel_shell", "preview-owner".to_owned()),
+            ("pebrel_input", format!("preview-owner\n{}\n第二行", "中文长文本 🙂 ".repeat(80))),
+        ] {
+            view.remote_files_test_event(
+                nebula_terminal::event::Event::UserVar { name: name.into(), value },
+                cx,
+            );
+        }
+        assert!(view.submitted_preview().unwrap().starts_with("中文长文本 🙂"));
+        receiver
+    });
+    draw(&mut window);
+    let row = bounds(&mut window, format!("sidebar-pane-{id}"));
+    let preview = bounds(&mut window, format!("sidebar-pane-preview-{id}"));
+    assert_eq!(preview.size.height, px(32.0));
+    assert!(preview.bottom() <= row.bottom());
+    assert!(preview.right() <= row.right());
+    click(&mut window, format!("sidebar-pane-{id}"));
+    assert_eq!(
+        workspace.read_with(&window, |workspace, _| workspace.active_terminal_pane_id()),
+        Some(id)
+    );
+}
+
+#[gpui::test]
 fn pane_controls_focus_exact_pane_after_reorder_unzoom_and_close_only_one(cx: &mut TestAppContext) {
     let directory = tempfile::tempdir().unwrap();
     let other = tempfile::tempdir().unwrap();

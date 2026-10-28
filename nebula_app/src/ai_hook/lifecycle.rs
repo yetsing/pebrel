@@ -225,7 +225,7 @@ impl AgentActivity {
             }
             let same_process = owner.pid.is_some() && owner.pid == event.agent_pid
                 || owner.remote_process.is_some() && owner.remote_process == event.remote_process
-                || matches!(event.source.as_str(), "pi" | "omp")
+                || matches!(event.source.as_str(), "pi" | "omp" | "opencode")
                     && owner.bridge_instance.is_some()
                     && owner.bridge_instance == event.bridge_instance;
             match (owner.pid, event.agent_pid) {
@@ -272,6 +272,9 @@ impl AgentActivity {
         if !self.accepts_hook(event) {
             return false;
         }
+        if event.kind == AiHookKind::UserMessage {
+            return true;
+        }
         self.record_owner(event);
         self.native_codex |= event.codex_hooks.is_some();
         if event.remote_process.is_some() && event.bridge_sequence.is_some() {
@@ -307,6 +310,7 @@ impl AgentActivity {
             self.pending_submit = false;
         }
         self.status = match event.kind {
+            AiHookKind::UserMessage => unreachable!("preview does not alter turn state"),
             AiHookKind::SessionStart if event.session_compacted => self.status,
             AiHookKind::SessionStart => {
                 self.turn_observed = false;

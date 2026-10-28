@@ -16,10 +16,10 @@ const code = stripTypeScriptTypes(embedded)
   .replace('await import(name)', 'await loadPiModule(name)')
   .replace("export default async function", "async function register");
 
-async function bridge() {
+async function bridge(sessionManager = {}) {
   const handlers = new Map();
   const sent = [];
-  const ctx = { cwd: "/project", sessionManager: { getSessionId: () => "session-1" } };
+  const ctx = { cwd: "/project", sessionManager: { getSessionId: () => "session-1", ...sessionManager } };
   await runInNewContext(`${code}\nregister(pi);`, {
     pi: { on: (name, handler) => handlers.set(name, handler) },
     process: { pid: 42, env: { PEBREL_HOOK_EXE: "fake-helper" } },
@@ -111,4 +111,30 @@ test("oversized provider errors are omitted before spawning the helper", async (
   await b.settle();
   assert.equal(b.sent[1].stop_reason, "error");
   assert.equal(b.sent[1].message, undefined);
+});
+
+test("only accepted user-role messages supply previews, with distinct repeated submissions", async () => {
+  const b = await bridge();
+  await b.emit("agent_start");
+  assert.equal(b.sent[0].user_message, undefined);
+  await b.emit("message_start", { message: { role: "assistant", content: "do not preview" } });
+  const message = { role: "user", content: [{ type: "text", text: "第一行\n第二行" }, { type: "image", data: "private" }] };
+  await b.emit("message_start", { message });
+  await b.emit("message_start", { message });
+  await b.emit("message_start", { message: { ...message } });
+  const previews = b.sent.filter(event => event.user_message !== undefined);
+  assert.deepEqual(previews.map(event => event.user_message), ["第一行\n第二行", "第一行\n第二行"]);
+  assert.notEqual(previews[0].event_id, previews[1].event_id);
+});
+
+test("branch switches project only the selected SDK branch and clear empty branches", async () => {
+  let branch = [{ type: "message", message: { role: "user", content: "selected branch" } }];
+  const b = await bridge({ getBranch: () => branch });
+  await b.emit("session_switch");
+  assert.equal(b.sent.at(-1).user_message, "selected branch");
+  assert.equal(b.sent.at(-1).preview_reset, true);
+  branch = [{ type: "message", message: { role: "assistant", content: "assistant only" } }];
+  await b.emit("session_tree");
+  assert.equal(b.sent.at(-1).user_message, undefined);
+  assert.equal(b.sent.at(-1).preview_reset, true);
 });
