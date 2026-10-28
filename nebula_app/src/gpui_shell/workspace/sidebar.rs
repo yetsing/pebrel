@@ -181,7 +181,19 @@ impl NebulaWorkspace {
             .child(WAITING_INPUT_GLYPH)
     }
 
-    fn render_sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+        if cfg!(windows) {
+            self.render_pane_sidebar(window, cx)
+        } else {
+            self.render_legacy_sidebar(window, cx).into_any_element()
+        }
+    }
+
+    fn render_legacy_sidebar(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let row_height = tab_scroll::tab_row_height(self.density);
         let row_pitch = self.tab_row_pitch();
         let theme = cx.theme();
@@ -803,7 +815,7 @@ impl NebulaWorkspace {
     /// 与旧壳 `nebula_tabs_section_open` 同义：点标题整行折叠/展开。
     /// 卷帘只裁剪槽位，视口高度在动画期间冻结，避免量到裁剪高后把溢出
     /// 列表锁成一行滚动区。
-    fn toggle_tabs_section(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn toggle_tabs_section(&mut self, cx: &mut Context<Self>) {
         self.tabs_section_collapsed = !self.tabs_section_collapsed;
         // 卷帘一动，菜单锚定的那一行就不在原处了。
         self.tab_menu = None;

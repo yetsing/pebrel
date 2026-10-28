@@ -1478,6 +1478,15 @@
     "new_terminal_ctrl_k": "New terminal (Ctrl+K)"
   },
   "workspace": {
+    "sidebar": {
+      "projects": "Projects",
+      "open_project": "Open project…",
+      "new_session": "New session",
+      "new_session_in_project": "New session in this project",
+      "local_shell_required": "Choose a local Windows shell to create project sessions.",
+      "directory_unavailable": "Project folder is unavailable: {path}",
+      "drag_tab": "Drag the entire tab, including all its panes"
+    },
     "pane": {
       "rename_hint": "Double-click to rename; Enter or click outside to save, Esc to cancel. Clear for an automatic title. Reopen to undo a saved name.",
       "stop_broadcast_input": "Stop broadcasting input",

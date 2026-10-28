@@ -15,6 +15,11 @@
 use gpui::App;
 use std::path::Path;
 
+#[cfg(all(test, feature = "gpui-test-support"))]
+pub(super) struct TestConfiguredLaunch(pub crate::session::LaunchSession);
+#[cfg(all(test, feature = "gpui-test-support"))]
+impl gpui::Global for TestConfiguredLaunch {}
+
 /// Resolve one explicit request, applying its directory only to the launch snapshot.
 pub(super) fn resolve_shell_at(
     shell_id: &str,
@@ -53,6 +58,12 @@ pub(super) fn at_explicit_directory(
 /// 保存 UI 短标，冷恢复时因此失去了真正的启动命令。检测失败才保留
 /// `Default`，让跨机器工作区按 schema 的既有降级规则使用当地默认值。
 pub(super) fn configured_local_launch(cx: &App) -> crate::session::LaunchSession {
+    // UI fixtures inject the shell snapshot without starting an OS PTY on GPUI's
+    // deterministic test executor. Native desktop tests keep the real resolver.
+    #[cfg(all(test, feature = "gpui-test-support"))]
+    if let Some(launch) = cx.try_global::<TestConfiguredLaunch>() {
+        return launch.0.clone();
+    }
     let shell_id = cx
         .try_global::<crate::gpui_shell::config::Settings>()
         .and_then(|settings| settings.shell_id.clone());

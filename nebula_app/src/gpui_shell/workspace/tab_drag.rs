@@ -15,6 +15,10 @@ use super::{
 pub(super) enum TabDragAxis {
     Vertical,
     Horizontal,
+    /// Projected rows have mixed heights and a stable Pane order, not Tab slots.
+    PaneSidebar {
+        target: Option<u64>,
+    },
 }
 
 /// 受约束的单轴 tab 拖拽：存储顺序只在释放时提交；拖进活动终端区域则
@@ -296,6 +300,27 @@ impl NebulaWorkspace {
         force_tear_out: bool,
         cx: &mut Context<Self>,
     ) {
+        let sidebar = matches!(
+            self.tab_drag.as_ref().map(|drag| drag.axis),
+            Some(TabDragAxis::PaneSidebar { .. })
+        );
+        if sidebar {
+            let source = self
+                .tab_drag
+                .as_ref()
+                .and_then(|drag| drag.cross_window.as_ref())
+                .and_then(|payload| self.tab_of_pane(payload.source_pane_id()));
+            let Some(source) = source else {
+                if let Some(drag) = self.tab_drag.take() {
+                    windowing::clear_cross_window_drag_target(drag.cross_window_target, cx);
+                }
+                cx.notify();
+                return;
+            };
+            self.tab_drag.as_mut().unwrap().source = source;
+        }
+        let sidebar_target =
+            sidebar.then(|| self.sidebar_drop_target(gpui::point(px(x), px(y)))).flatten();
         let len = self.tabs.len();
         // dock 必须在可变借用 drag 前计算；只有两个 Terminal tab 之间允许。
         // Alt 强制撕出时跳过 dock 求解，避免显示会被撕出覆盖的并入预览。
@@ -317,6 +342,10 @@ impl NebulaWorkspace {
             let delta = match drag.axis {
                 TabDragAxis::Vertical => dy,
                 TabDragAxis::Horizontal => dx,
+                TabDragAxis::PaneSidebar { .. } => {
+                    drag.axis = TabDragAxis::PaneSidebar { target: sidebar_target };
+                    0.0
+                },
             };
             let before = -(drag.source as f32) * drag.pitch;
             let after = (len.saturating_sub(1) as f32 - drag.source as f32) * drag.pitch;
@@ -333,7 +362,12 @@ impl NebulaWorkspace {
             if let Some(nav) = drag.dock {
                 self.dock_tab_into_active(drag.source, nav, window, cx);
             } else {
-                let target = Self::drag_slot(&drag, self.tabs.len());
+                let target = match drag.axis {
+                    TabDragAxis::PaneSidebar { target } => {
+                        target.and_then(|pane| self.tab_of_pane(pane)).unwrap_or(drag.source)
+                    },
+                    _ => Self::drag_slot(&drag, self.tabs.len()),
+                };
                 self.move_tab(drag.source, target, window, cx);
             }
         }

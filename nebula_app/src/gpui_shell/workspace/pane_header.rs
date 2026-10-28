@@ -213,15 +213,20 @@ fn broadcast_mark(side: f32, color: Hsla) -> impl IntoElement {
 }
 
 /// 一个 pane 的标题信息：图标（AI 品牌图 / Nerd Font 字位）+ 一行标题。
-struct PaneTitle {
-    logo: Option<std::sync::Arc<gpui::RenderImage>>,
-    logo_pending: bool,
-    glyph: Option<&'static str>,
-    text: SharedString,
+pub(super) struct PaneTitle {
+    pub(super) logo: Option<std::sync::Arc<gpui::RenderImage>>,
+    pub(super) logo_pending: bool,
+    pub(super) glyph: Option<&'static str>,
+    pub(super) text: SharedString,
 }
 
 impl NebulaWorkspace {
-    fn pane_title(&self, view: &Entity<TerminalView>, cx: &App, dark: bool) -> PaneTitle {
+    pub(super) fn pane_title(
+        &self,
+        view: &Entity<TerminalView>,
+        cx: &App,
+        dark: bool,
+    ) -> PaneTitle {
         let view = view.read(cx);
         // 与 tab 标题同一套推导，只是作用在**这个** pane 上：跑着的程序最有
         // 信息量，其次是 SSH 目标，最后回落到 cwd 末级目录。

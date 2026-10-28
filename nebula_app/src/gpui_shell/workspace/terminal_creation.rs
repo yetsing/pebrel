@@ -10,6 +10,7 @@ impl NebulaWorkspace {
         // 见 `tab_duplication::CopyKind::NewTab`。
         let (launch, cwd) = match Self::startup_directory() {
             Some(dir) => (shell_launch::configured_local_launch(cx), Some(dir)),
+            None if self.settings_open => (shell_launch::configured_local_launch(cx), None),
             None => self.new_tab_from_focused(cx),
         };
         let project = self.active_pane_project();
@@ -45,6 +46,16 @@ impl NebulaWorkspace {
     ) -> TerminalPane {
         let pane_id = self.next_pane_id;
         self.next_pane_id = self.next_pane_id.saturating_add(1);
+        #[cfg(all(test, feature = "gpui-test-support"))]
+        let launch = match (launch, cx.try_global::<shell_launch::TestConfiguredLaunch>()) {
+            (
+                crate::gpui_shell::terminal::view::TerminalLaunch::Local {
+                    cwd, shell: None, ..
+                },
+                Some(test),
+            ) => Self::terminal_launch_from_session(&test.0, cwd),
+            (launch, _) => launch,
+        };
         let view = cx.new(|cx| TerminalView::new(pane_id, grid, launch, window, cx));
         let subscription = cx.subscribe_in(&view, window, Self::on_terminal_event);
         let project = (cfg!(windows) && !view.read(cx).is_remote_session()).then(|| {

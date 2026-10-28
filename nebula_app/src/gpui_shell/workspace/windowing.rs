@@ -223,6 +223,10 @@ pub(crate) struct CrossWindowTabDrag {
 }
 
 impl CrossWindowTabDrag {
+    pub(super) fn source_pane_id(&self) -> u64 {
+        self.pane_id
+    }
+
     pub(crate) fn source_window_id(&self) -> u64 {
         self.source_window_id
     }

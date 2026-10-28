@@ -3,6 +3,22 @@ use crate::gpui_shell::terminal::view::TerminalLaunch;
 use crate::gpui_shell::workspace::tab_drag::{TabDrag, TabDragAxis};
 use gpui::{TestAppContext, size};
 
+fn sidebar_drag_bounds(
+    workspace: &Entity<NebulaWorkspace>,
+    index: usize,
+    visual: &mut gpui::VisualTestContext,
+) -> gpui::Bounds<gpui::Pixels> {
+    let selector = if cfg!(windows) {
+        let id = workspace.read_with(visual, |workspace, _| {
+            workspace.tabs[index].primary_terminal_pane().unwrap().id
+        });
+        format!("sidebar-tab-grip-{id}")
+    } else {
+        format!("sidebar-tab-{index}")
+    };
+    visual.debug_bounds(String::leak(selector)).expect("sidebar tab drag handle must render")
+}
+
 pub(super) fn initialize_test(cx: &mut TestAppContext) {
     cx.update(|cx| {
         gpui_component::init(cx);
@@ -429,7 +445,7 @@ fn alt_drag_survives_nc_move_and_tears_out_via_real_events(cx: &mut TestAppConte
     visual.update(|window, cx| {
         window.draw(cx).clear(cx);
     });
-    let row = visual.debug_bounds("sidebar-tab-1").expect("sidebar tab row must render");
+    let row = sidebar_drag_bounds(&source, 1, &mut visual);
     let start = row.center();
     let at = |dy: f32| gpui::Point::new(start.x, start.y + gpui::px(dy));
     let alt = gpui::Modifiers { alt: true, ..Default::default() };
@@ -482,7 +498,7 @@ fn release_outside_source_window_tears_out_without_alt(cx: &mut TestAppContext) 
     visual.update(|window, cx| {
         window.draw(cx).clear(cx);
     });
-    let row = visual.debug_bounds("sidebar-tab-1").expect("sidebar tab row must render");
+    let row = sidebar_drag_bounds(&source, 1, &mut visual);
     let start = row.center();
     let plain = gpui::Modifiers::default();
     visual.simulate_mouse_down(start, gpui::MouseButton::Left, plain);

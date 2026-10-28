@@ -1478,6 +1478,15 @@
     "new_terminal_ctrl_k": "新建终端 (Ctrl+K)"
   },
   "workspace": {
+    "sidebar": {
+      "projects": "项目",
+      "open_project": "打开项目…",
+      "new_session": "新会话",
+      "new_session_in_project": "在此项目中新建会话",
+      "local_shell_required": "请选择 Windows 本地 Shell 后创建项目会话。",
+      "directory_unavailable": "项目文件夹不可用：{path}",
+      "drag_tab": "拖动整个标签及其中的全部分栏"
+    },
     "pane": {
       "rename_hint": "双击重命名；Enter 或点击外部保存，Esc 取消。清空恢复自动标题，重新编辑可撤销已保存的名称。",
       "stop_broadcast_input": "关闭广播输入",

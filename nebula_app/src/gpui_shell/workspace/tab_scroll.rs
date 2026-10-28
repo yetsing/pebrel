@@ -156,6 +156,7 @@ impl NebulaWorkspace {
     }
 
     pub(super) fn reveal_active_tab(&mut self) {
+        self.reveal_sidebar_selection();
         let window = self.tabs_window();
         let next = reveal_index(self.active, window.scroll, window.show);
         self.tabs_scroll = clamp_scroll(next, window.max);

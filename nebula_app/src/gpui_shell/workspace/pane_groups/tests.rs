@@ -12,6 +12,7 @@ fn fixture(cx: &mut TestAppContext) -> (Entity<NebulaWorkspace>, VisualTestConte
         crate::gpui_shell::file_editor::init(cx);
         super::super::init(cx);
         windowing::initialize(cx, hub.clone());
+        cx.set_global(shell_launch::TestConfiguredLaunch(launch()));
         cx.set_reduce_motion(true);
     });
     let mut result = None;

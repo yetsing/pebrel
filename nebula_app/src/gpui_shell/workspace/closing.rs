@@ -30,7 +30,9 @@ impl NebulaWorkspace {
             )
             .on_ok(move |_, window, cx| {
                 let _ = workspace.update(cx, |workspace, cx| {
-                    workspace.close_pane(tab_ix, pane_id, window, cx);
+                    if let Some(index) = workspace.tab_of_pane(pane_id) {
+                        workspace.close_pane(index, pane_id, window, cx);
+                    }
                 });
                 true
             })
@@ -51,8 +53,10 @@ impl NebulaWorkspace {
         let body: SharedString =
             language.format(Message::WorkspaceCloseRunningProcess, &[("process", &process)]).into();
         let workspace = cx.entity().downgrade();
+        let tab_id = self.tab_meta[tab_ix].runtime_id.clone();
         window.open_dialog(cx, move |dialog, window, _cx| {
             let workspace = workspace.clone();
+            let tab_id = tab_id.clone();
             confirm_dialog(
                 dialog,
                 window,
@@ -64,7 +68,11 @@ impl NebulaWorkspace {
             )
             .on_ok(move |_, window, cx| {
                 let _ = workspace.update(cx, |workspace, cx| {
-                    workspace.close_tab(tab_ix, window, cx);
+                    if let Some(index) =
+                        workspace.tab_meta.iter().position(|meta| meta.runtime_id == tab_id)
+                    {
+                        workspace.close_tab(index, window, cx);
+                    }
                 });
                 true
             })

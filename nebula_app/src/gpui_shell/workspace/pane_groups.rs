@@ -18,6 +18,9 @@ impl NebulaWorkspace {
     }
 
     pub(super) fn active_pane_project(&self) -> Option<model::PaneProject> {
+        if self.settings_open {
+            return None;
+        }
         self.tabs.get(self.active)?.primary_terminal_pane()?.project.clone()
     }
 
