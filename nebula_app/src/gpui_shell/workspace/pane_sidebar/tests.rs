@@ -97,6 +97,128 @@ fn click(window: &mut VisualTestContext, selector: impl Into<String>) {
 }
 
 #[gpui::test]
+fn fold_pin_keyboard_and_new_session_keep_live_panes_and_stable_membership(
+    cx: &mut TestAppContext,
+) {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let (workspace, mut window) = fixture(cx);
+    let (first, second, third) = window.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            let first = add(workspace, a.path(), window, cx);
+            let second = workspace.split_focused(SplitDirection::LeftRight, window, cx).unwrap();
+            let third = add(workspace, b.path(), window, cx);
+            (first, second, third)
+        })
+    });
+    draw(&mut window);
+    click(&mut window, format!("sidebar-project-fold-{}", a.path().display()));
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(
+            workspace.sidebar_rows(),
+            [
+                Row::Project(ProjectDirectory::new(a.path()).unwrap()),
+                Row::Project(ProjectDirectory::new(b.path()).unwrap()),
+                Row::Pane(third)
+            ]
+        );
+        assert!(workspace.tab_of_pane(first).is_some() && workspace.tab_of_pane(second).is_some());
+        assert_eq!(workspace.active_terminal_pane_id(), Some(third));
+    });
+    assert!(
+        window.debug_bounds(Box::leak(format!("sidebar-pane-{first}").into_boxed_str())).is_none()
+    );
+    // A focused header owns arrows and Space without sending them to the PTY.
+    window.simulate_keystrokes("right");
+    draw(&mut window);
+    assert!(
+        window.debug_bounds(Box::leak(format!("sidebar-pane-{first}").into_boxed_str())).is_some()
+    );
+    window.simulate_keystrokes("left");
+    draw(&mut window);
+    assert!(
+        window.debug_bounds(Box::leak(format!("sidebar-pane-{first}").into_boxed_str())).is_none()
+    );
+    click(&mut window, format!("sidebar-project-pin-{}", b.path().display()));
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(
+            workspace.sidebar_rows()[0],
+            Row::Project(ProjectDirectory::new(b.path()).unwrap())
+        );
+        assert!(workspace.pane_groups.groups()[0].collapsed);
+        assert_eq!(workspace.active_terminal_pane_id(), Some(third));
+    });
+    click(&mut window, format!("sidebar-project-pin-{}", b.path().display()));
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(
+            workspace.sidebar_rows()[0],
+            Row::Project(ProjectDirectory::new(a.path()).unwrap())
+        )
+    });
+    window.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| workspace.activate_sidebar_pane(second, window, cx))
+    });
+    draw(&mut window);
+    assert!(
+        window.debug_bounds(Box::leak(format!("sidebar-pane-{second}").into_boxed_str())).is_some()
+    );
+    click(&mut window, format!("sidebar-project-fold-{}", a.path().display()));
+    click(&mut window, format!("sidebar-project-add-{}", a.path().display()));
+    workspace.read_with(&window, |workspace, cx| {
+        assert!(!workspace.pane_groups.groups()[0].collapsed);
+        assert_eq!(workspace.pane_groups.groups()[0].panes.len(), 3);
+        assert_eq!(
+            workspace.tabs[workspace.active].focused_view().unwrap().read(cx).cwd,
+            a.path().to_string_lossy()
+        );
+    });
+}
+
+#[gpui::test]
+fn project_branch_and_tree_fit_narrow_sidebar_and_react_to_language_and_theme(
+    cx: &mut TestAppContext,
+) {
+    let a = tempfile::tempdir().unwrap();
+    let (workspace, mut window) = fixture(cx);
+    let id = window.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.sidebar_width = 220.0;
+            let id = add(workspace, a.path(), window, cx);
+            workspace.pane_sidebar.branches.set_for_test(
+                &ProjectDirectory::new(a.path()).unwrap(),
+                "feature/中文-and-a-very-long-branch-name",
+            );
+            id
+        })
+    });
+    for theme in [nebula_settings::ThemeName::Nord, nebula_settings::ThemeName::Paper] {
+        window.update(|_, cx| {
+            let mut settings = crate::gpui_shell::config::Settings::load(theme);
+            settings.shell_id = Some("cmd".into());
+            settings.ui_language = if theme == nebula_settings::ThemeName::Paper {
+                crate::i18n::UiLanguage::EnUs
+            } else {
+                crate::i18n::UiLanguage::ZhCn
+            };
+            cx.set_global(settings);
+            crate::gpui_shell::theme::apply_chrome_theme(cx);
+        });
+        draw(&mut window);
+        let header = bounds(&mut window, format!("sidebar-project-{}", a.path().display()));
+        let branch = bounds(&mut window, format!("sidebar-project-branch-{}", a.path().display()));
+        let pin = bounds(&mut window, format!("sidebar-project-pin-{}", a.path().display()));
+        let add = bounds(&mut window, format!("sidebar-project-add-{}", a.path().display()));
+        assert!(branch.left() >= header.left() && branch.right() <= header.right());
+        assert!(branch.bottom() <= header.bottom());
+        assert!(pin.right() <= add.left() && add.right() <= header.right());
+        let pane = bounds(&mut window, format!("sidebar-pane-{id}"));
+        let preview = bounds(&mut window, format!("sidebar-pane-preview-{id}"));
+        assert!(preview.right() <= pane.right());
+        assert_eq!(preview.size.height, px(32.0));
+    }
+}
+
+#[gpui::test]
 fn accepted_multiline_preview_uses_two_lines_without_changing_navigation(cx: &mut TestAppContext) {
     let directory = tempfile::tempdir().unwrap();
     let (workspace, mut window) = fixture(cx);

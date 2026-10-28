@@ -1,5 +1,50 @@
 use super::*;
 
+#[test]
+fn pinning_is_a_stable_partition_and_unpin_restores_first_seen_order() {
+    let mut groups = PaneGroups::default();
+    groups.sync([(1, project("a")), (2, project("b")), (3, project("a")), (4, project("c"))]);
+    groups.toggle_pinned(&directory("c"));
+    groups.toggle_pinned(&directory("b"));
+    assert_eq!(
+        groups.ordered_groups().map(|g| g.directory.clone()).collect::<Vec<_>>(),
+        [directory("b"), directory("c"), directory("a")]
+    );
+    groups.sync([(4, project("c")), (3, project("a")), (2, project("b")), (1, project("a"))]);
+    assert_eq!(
+        groups.ordered_groups().map(|g| g.panes.clone()).collect::<Vec<_>>(),
+        [vec![2], vec![4], vec![1, 3]]
+    );
+    groups.toggle_pinned(&directory("c"));
+    groups.toggle_pinned(&directory("b"));
+    assert_eq!(
+        groups.ordered_groups().map(|g| g.directory.clone()).collect::<Vec<_>>(),
+        [directory("a"), directory("b"), directory("c")]
+    );
+}
+
+#[test]
+fn collapsed_membership_survives_sync_and_explicit_reveal_is_scoped() {
+    let mut groups = PaneGroups::default();
+    groups.sync([(1, project("a")), (2, project("b"))]);
+    groups.toggle_collapsed(&directory("a"));
+    groups.sync([(1, project("a")), (2, project("b")), (3, project("a"))]);
+    assert!(groups.groups()[0].collapsed);
+    assert_eq!(groups.groups()[0].panes, [1, 3]);
+    groups.reveal(2);
+    assert!(groups.groups()[0].collapsed);
+    groups.reveal(3);
+    assert!(!groups.groups()[0].collapsed);
+    groups.toggle_pinned(&directory("a"));
+    groups.toggle_collapsed(&directory("a"));
+    groups.sync([(2, project("b"))]);
+    groups.sync([(2, project("b")), (4, project("a"))]);
+    assert!(!groups.groups()[1].collapsed && !groups.groups()[1].pinned);
+    let mut other_window = PaneGroups::default();
+    other_window.sync([(4, project("a"))]);
+    assert!(!other_window.groups()[0].collapsed && !other_window.groups()[0].pinned);
+}
+
 fn directory(name: &str) -> ProjectDirectory {
     ProjectDirectory::new(&std::env::temp_dir().join("pebrel-pane-groups").join(name)).unwrap()
 }

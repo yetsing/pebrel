@@ -83,6 +83,11 @@ each agent's activity, and read its output without leaving the application.
 ### Terminals and Sessions
 
 - Sidebar or top tabs, draggable split panes, and per-pane working directories.
+- On Windows, project groups support collapse, pinning, and tree-style pane entries.
+  Branch names refresh in the background from each project's fixed directory.
+  Collapsing keeps sessions running; pinning preserves pane order, and unpinning
+  restores project discovery order. Collapse and pin preferences stay in the current
+  window and are not saved for session restoration.
 - On Windows, project sidebar entries preview accepted PowerShell commands and
   confirmed native user messages from Codex, OpenCode, Pi, and Kimi when the pane
   has a verified source. Multiline text wraps to two lines. Missing metadata,

@@ -218,6 +218,7 @@ impl NebulaWorkspace {
                     if workspace.refresh_pending_pane_groups() {
                         cx.notify();
                     }
+                    workspace.refresh_sidebar_branches(cx);
                     workspace.publish_tray_agents(cx);
                     #[cfg(all(feature = "gpui-test-support", debug_assertions))]
                     workspace.capture_sidebar_qa(cx);

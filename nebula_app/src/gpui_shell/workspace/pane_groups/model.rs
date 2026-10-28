@@ -32,6 +32,8 @@ impl PaneProject {
 pub(in crate::gpui_shell::workspace) struct ProjectGroup {
     pub(in crate::gpui_shell::workspace) directory: ProjectDirectory,
     pub(in crate::gpui_shell::workspace) panes: Vec<u64>,
+    pub(in crate::gpui_shell::workspace) collapsed: bool,
+    pub(in crate::gpui_shell::workspace) pinned: bool,
 }
 
 #[derive(Debug)]
@@ -50,6 +52,36 @@ pub(in crate::gpui_shell::workspace) struct PaneGroups {
 impl PaneGroups {
     pub(in crate::gpui_shell::workspace) fn groups(&self) -> &[ProjectGroup] {
         &self.groups
+    }
+
+    pub(in crate::gpui_shell::workspace) fn ordered_groups(
+        &self,
+    ) -> impl Iterator<Item = &ProjectGroup> {
+        self.groups
+            .iter()
+            .filter(|group| group.pinned)
+            .chain(self.groups.iter().filter(|group| !group.pinned))
+    }
+
+    pub(in crate::gpui_shell::workspace) fn toggle_collapsed(
+        &mut self,
+        directory: &ProjectDirectory,
+    ) {
+        if let Some(group) = self.groups.iter_mut().find(|group| group.directory == *directory) {
+            group.collapsed = !group.collapsed;
+        }
+    }
+
+    pub(in crate::gpui_shell::workspace) fn toggle_pinned(&mut self, directory: &ProjectDirectory) {
+        if let Some(group) = self.groups.iter_mut().find(|group| group.directory == *directory) {
+            group.pinned = !group.pinned;
+        }
+    }
+
+    pub(in crate::gpui_shell::workspace) fn reveal(&mut self, pane: u64) {
+        if let Some(group) = self.groups.iter_mut().find(|group| group.panes.contains(&pane)) {
+            group.collapsed = false;
+        }
     }
 
     pub(in crate::gpui_shell::workspace) fn pending_panes(&self) -> impl Iterator<Item = u64> + '_ {
@@ -88,8 +120,12 @@ impl PaneGroups {
             {
                 group.panes.push(pane.id);
             } else {
-                self.groups
-                    .push(ProjectGroup { directory: directory.clone(), panes: vec![pane.id] });
+                self.groups.push(ProjectGroup {
+                    directory: directory.clone(),
+                    panes: vec![pane.id],
+                    collapsed: false,
+                    pinned: false,
+                });
             }
         }
     }

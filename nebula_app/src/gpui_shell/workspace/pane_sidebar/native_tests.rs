@@ -51,6 +51,24 @@ fn native_project_sidebar() {
     let b = output.join("项目 Beta");
     std::fs::create_dir_all(&a).unwrap();
     std::fs::create_dir_all(&b).unwrap();
+    let projects = std::env::var("PEBREL_SIDEBAR_QA_PROJECTS").as_deref() == Ok("1");
+    if projects {
+        for (directory, branch) in
+            [(&a, "feature/sidebar-long-initial-branch"), (&b, "feature/项目-Beta")]
+        {
+            let mut command = std::process::Command::new("git");
+            crate::platform::process::hidden_command(&mut command);
+            assert!(
+                command
+                    .current_dir(directory)
+                    .args(["init", "--initial-branch", branch])
+                    .output()
+                    .unwrap()
+                    .status
+                    .success()
+            );
+        }
+    }
     let theme = if std::env::var("PEBREL_SIDEBAR_QA_THEME").as_deref() == Ok("light") {
         nebula_settings::ThemeName::Paper
     } else {
@@ -131,6 +149,12 @@ fn native_project_sidebar() {
         cx.spawn(async move |cx| {
             cx.background_executor().timer(Duration::from_millis(1000)).await;
             cx.update_window(handle.into(), |_, window, cx| {
+                if projects {
+                    workspace.update(cx,|workspace,cx| {
+                        let view=workspace.tabs[workspace.tab_of_pane(ids[0]).unwrap()].focused_view().unwrap().clone();
+                        view.update(cx,|view,cx| view.runtime_prompt("ping -n 4 127.0.0.1 >nul & echo S5_COLLAPSED_^DONE".into(),true,cx).unwrap());
+                    });
+                }
                 let _ = window.draw(cx);
                 let RawWindowHandle::Win32(raw) = window.window_handle().unwrap().as_raw() else { panic!("Windows required") };
                 let controls = ids.iter().flat_map(|id| [format!("sidebar-pane-{id}"), format!("sidebar-pane-close-{id}"), format!("sidebar-tab-grip-{id}")])
@@ -138,17 +162,57 @@ fn native_project_sidebar() {
                         let scale = window.scale_factor();
                         (selector, [f32::from(bounds.center().x) * scale, f32::from(bounds.center().y) * scale])
                     })).collect::<std::collections::BTreeMap<_, _>>();
-                std::fs::write(output.join("ready.json"), serde_json::to_vec(&serde_json::json!({"hwnd": raw.hwnd.get(), "panes": ids, "controls": controls})).unwrap()).unwrap();
+                std::fs::write(output.join("ready.json"), serde_json::to_vec(&serde_json::json!({"hwnd": raw.hwnd.get(), "panes": ids, "controls": controls,"projects":[a,b],"scale":window.scale_factor()})).unwrap()).unwrap();
             }).unwrap();
             let mut stage = 0;
-            for _ in 0..150 {
+            let mut running_verified=false;
+            for _ in 0..300 {
                 let _ = cx.update_window(handle.into(), |_, window, cx| {
-                    if stage == 0 && output.join("select-pane").exists() {
+                    if projects {
+                        if stage==0 && output.join("collapse-project").exists() {
+                            click_control(&format!("sidebar-project-fold-{}",a.display()),window,cx);
+                            workspace.update(cx,|workspace,cx| {
+                                assert!(workspace.pane_groups.groups()[0].collapsed);
+                                assert_eq!(workspace.tabs.len(),2);
+                                assert!(workspace.tab_of_pane(ids[0]).is_some() && workspace.tab_of_pane(ids[1]).is_some());
+                                workspace.activate_sidebar_pane(ids[2],window,cx);
+                            });
+                            stage=1;
+                        }
+                        if stage==1 && output.join("pin-project").exists() {
+                            assert!(running_verified,"hidden PTY command has not completed");
+                            click_control(&format!("sidebar-project-pin-{}",b.display()),window,cx);
+                            workspace.read_with(cx,|workspace,_| assert_eq!(workspace.sidebar_rows()[0],Row::Project(ProjectDirectory::new(&b).unwrap())));
+                            stage=2;
+                        }
+                        if stage==2 && output.join("expand-project").exists() {
+                            click_control(&format!("sidebar-project-fold-{}",a.display()),window,cx);
+                            workspace.read_with(cx,|workspace,_| assert!(!workspace.pane_groups.groups()[0].collapsed));
+                            stage=3;
+                        }
+                        if stage==3 && output.join("select-pane").exists() {
+                            click_control(&format!("sidebar-pane-{}",ids[1]),window,cx);
+                            workspace.read_with(cx,|workspace,_| assert_eq!(workspace.active_terminal_pane_id(),Some(ids[1])));
+                            stage=4;
+                        }
+                        if stage==4 && output.join("close-pane").exists() {
+                            click_control(&format!("sidebar-pane-close-{}",ids[1]),window,cx);
+                            workspace.read_with(cx,|workspace,_| {assert!(workspace.tab_of_pane(ids[1]).is_none());assert!(workspace.tab_of_pane(ids[0]).is_some());assert_eq!(workspace.tabs.len(),2);});
+                            stage=5;
+                        }
+                        if stage==5 && output.join("unpin-project").exists() {
+                            click_control(&format!("sidebar-project-pin-{}",b.display()),window,cx);
+                            workspace.read_with(cx,|workspace,_| assert_eq!(workspace.sidebar_rows()[0],Row::Project(ProjectDirectory::new(&a).unwrap())));
+                            stage=6;
+                            checked.store(true,std::sync::atomic::Ordering::SeqCst);
+                        }
+                    }
+                    if !projects && stage == 0 && output.join("select-pane").exists() {
                         click_control(&format!("sidebar-pane-{}", ids[1]), window, cx);
                         workspace.read_with(cx, |workspace, _| assert_eq!(workspace.active_terminal_pane_id(), Some(ids[1])));
                         stage = 1;
                     }
-                    if stage == 1 && output.join("close-pane").exists() {
+                    if !projects && stage == 1 && output.join("close-pane").exists() {
                         click_control(&format!("sidebar-pane-close-{}", ids[1]), window, cx);
                         workspace.read_with(cx, |workspace, _| {
                             assert!(workspace.tab_of_pane(ids[1]).is_none());
@@ -159,11 +223,19 @@ fn native_project_sidebar() {
                         checked.store(true, std::sync::atomic::Ordering::SeqCst);
                     }
                     workspace.update(cx, |workspace, cx| {
-                        std::fs::write(output.join("state.json"), serde_json::to_vec(&serde_json::json!({
+                        if projects && stage==1 && workspace.pane_groups.groups()[0].collapsed {
+                            let view=workspace.tabs[workspace.tab_of_pane(ids[0]).unwrap()].focused_view().unwrap();
+                            let read=view.read(cx).runtime_read(1,80,None).unwrap();
+                            running_verified |= !read.exited && read.text.lines().any(|line| line.trim()=="S5_COLLAPSED_DONE");
+                        }
+                        std::fs::write(output.join("state.pending"), serde_json::to_vec(&serde_json::json!({
                             "stage": stage,
+                            "running_verified":running_verified,
+                            "branches":workspace.pane_groups.groups().iter().map(|group| serde_json::json!({"directory":group.directory.path(),"branch":workspace.pane_sidebar.branches.get(&group.directory),"collapsed":group.collapsed,"pinned":group.pinned})).collect::<Vec<_>>(),
                             "active": workspace.active_terminal_pane_id(), "tabs": workspace.tabs.len(),
                             "panes": workspace.sidebar_rows().iter().filter_map(|row| if let Row::Pane(id) = row { Some(*id) } else { None }).collect::<Vec<_>>()
                         })).unwrap()).unwrap();
+                        let _=std::fs::rename(output.join("state.pending"),output.join("state.json"));
                         cx.notify();
                     });
                     let _ = window.draw(cx);

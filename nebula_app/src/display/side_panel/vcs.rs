@@ -9,6 +9,79 @@ pub(crate) fn git_pull_args() -> Vec<String> {
     vec!["pull".into(), "--ff-only".into()]
 }
 
+/// Only HEAD's symbolic branch, for fixed local project headers. No index scan.
+pub(crate) fn read_git_branch(root: &Path, cancelled: &dyn Fn() -> bool) -> Option<String> {
+    let mut command = std::process::Command::new("git");
+    command
+        .args(["--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"])
+        .current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_COMMON_DIR")
+        .env_remove("GIT_INDEX_FILE")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_NO_LAZY_FETCH", "1");
+    let bytes = crate::platform::process_output::read_cancellable(
+        command,
+        Duration::from_secs(2),
+        4096,
+        cancelled,
+    )
+    .ok()?;
+    let branch = std::str::from_utf8(&bytes).ok()?.trim_end_matches(['\r', '\n']);
+    (!branch.is_empty() && !branch.chars().any(char::is_control)).then(|| branch.to_owned())
+}
+
+#[cfg(test)]
+mod project_branch_tests {
+    use super::*;
+
+    fn git(root: &Path, args: &[&str]) {
+        let mut command = std::process::Command::new("git");
+        crate::platform::process::hidden_command(&mut command);
+        assert!(command.current_dir(root).args(args).output().unwrap().status.success());
+    }
+
+    #[test]
+    fn fixed_directory_branch_tracks_unicode_switches_and_worktrees() {
+        let root = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        git(root.path(), &["init", "--initial-branch=feature/中文"]);
+        git(other.path(), &["init", "--initial-branch=other"]);
+        assert_eq!(read_git_branch(root.path(), &|| false).as_deref(), Some("feature/中文"));
+        assert_eq!(read_git_branch(other.path(), &|| false).as_deref(), Some("other"));
+        git(root.path(), &["symbolic-ref", "HEAD", "refs/heads/next"]);
+        assert_eq!(read_git_branch(root.path(), &|| false).as_deref(), Some("next"));
+        git(
+            root.path(),
+            &[
+                "-c",
+                "user.name=QA",
+                "-c",
+                "user.email=qa@example.invalid",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "fixture",
+            ],
+        );
+        let worktree = root.path().join("linked");
+        git(root.path(), &["worktree", "add", "-b", "linked-branch", worktree.to_str().unwrap()]);
+        assert_eq!(read_git_branch(&worktree, &|| false).as_deref(), Some("linked-branch"));
+        git(&worktree, &["checkout", "--detach"]);
+        assert!(read_git_branch(&worktree, &|| false).is_none());
+    }
+
+    #[test]
+    fn unavailable_non_git_or_cancelled_directory_has_no_branch() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(read_git_branch(root.path(), &|| false).is_none());
+        assert!(read_git_branch(&root.path().join("absent"), &|| false).is_none());
+        git(root.path(), &["init", "--initial-branch=main"]);
+        assert!(read_git_branch(root.path(), &|| true).is_none());
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SvnMutation {
     Add(Vec<PathBuf>),

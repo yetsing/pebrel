@@ -150,65 +150,6 @@ impl NebulaWorkspace {
             .into_any_element()
     }
 
-    fn render_project_header(
-        &self,
-        directory: ProjectDirectory,
-        supported: bool,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let language = crate::gpui_shell::config::ui_language(cx);
-        let path: SharedString = directory.path().to_string_lossy().into_owned().into();
-        let name: SharedString = directory
-            .path()
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| path.to_string())
-            .into();
-        let key: SharedString = format!("sidebar-project-{}", path).into();
-        h_flex()
-            .id(key)
-            .debug_selector({
-                let path = path.clone();
-                move || format!("sidebar-project-{path}")
-            })
-            .h(px(HEADER_HEIGHT))
-            .flex_shrink_0()
-            .w_full()
-            .items_center()
-            .gap_2()
-            .px_2()
-            .text_color(cx.theme().foreground)
-            .text_size(px(13.0))
-            .font_weight(FontWeight::SEMIBOLD)
-            .tooltip(move |window, cx| tab_presentation::tooltip(path.clone(), window, cx))
-            .child(Icon::new(IconName::Folder).small().flex_shrink_0())
-            .child(div().flex_1().min_w_0().truncate().child(name))
-            .child(
-                Button::new(SharedString::from(format!(
-                    "sidebar-project-add-{}",
-                    directory.path().display()
-                )))
-                .debug_selector({
-                    let path = directory.path().to_owned();
-                    move || format!("sidebar-project-add-{}", path.display())
-                })
-                .ghost()
-                .xsmall()
-                .icon(IconName::Plus)
-                .disabled(!supported)
-                .tooltip(if supported {
-                    language.text(Message::WorkspaceSidebarNewSessionInProject)
-                } else {
-                    language.text(Message::WorkspaceSidebarLocalShellRequired)
-                })
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    cx.stop_propagation();
-                    this.add_project_session(directory.clone(), window, cx);
-                })),
-            )
-            .into_any_element()
-    }
-
     fn render_sidebar_pane(&self, id: u64, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(index) = self.tab_of_pane(id) else { return div().into_any_element() };
         let WorkspaceTab::Terminal { panes, focused, .. } = &self.tabs[index] else {
@@ -218,6 +159,9 @@ impl NebulaWorkspace {
             return div().into_any_element();
         };
         let theme = cx.theme();
+        let group = self.pane_groups.groups().iter().find(|group| group.panes.contains(&id));
+        let grouped = group.is_some();
+        let last_in_group = group.is_some_and(|group| group.panes.last() == Some(&id));
         let language = crate::gpui_shell::config::ui_language(cx);
         let active = !self.settings_open && self.active == index && *focused == id;
         let title = self.pane_title(&pane.view, cx, theme.is_dark());
@@ -263,7 +207,7 @@ impl NebulaWorkspace {
             .w_full()
             .h(px(SESSION_HEIGHT))
             .flex_shrink_0()
-            .pl(px(18.0))
+            .pl(px(if grouped { 44.0 } else { 18.0 }))
             .pr_2()
             .py_1()
             .rounded_md()
@@ -325,6 +269,26 @@ impl NebulaWorkspace {
                         .w(px(3.0))
                         .rounded_full()
                         .bg(theme.primary),
+                )
+            })
+            .when(grouped, |row| {
+                row.child(
+                    div()
+                        .absolute()
+                        .left(px(28.0))
+                        .top(px(-GAP))
+                        .w(px(1.0))
+                        .h(px(if last_in_group { 17.0 + GAP } else { SESSION_HEIGHT + GAP }))
+                        .bg(theme.border),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .left(px(28.0))
+                        .top(px(17.0))
+                        .w(px(12.0))
+                        .h(px(1.0))
+                        .bg(theme.border),
                 )
             })
             .child(

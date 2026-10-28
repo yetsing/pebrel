@@ -1485,7 +1485,12 @@
       "new_session_in_project": "New session in this project",
       "local_shell_required": "Choose a local Windows shell to create project sessions.",
       "directory_unavailable": "Project folder is unavailable: {path}",
-      "drag_tab": "Drag the entire tab, including all its panes"
+      "drag_tab": "Drag the entire tab, including all its panes",
+      "collapse_project": "Collapse project",
+      "expand_project": "Expand project",
+      "pin_project": "Pin project",
+      "unpin_project": "Unpin project",
+      "project_branch": "Branch: {branch}"
     },
     "pane": {
       "rename_hint": "Double-click to rename; Enter or click outside to save, Esc to cancel. Clear for an automatic title. Reopen to undo a saved name.",

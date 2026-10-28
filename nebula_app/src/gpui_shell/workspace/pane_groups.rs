@@ -15,6 +15,8 @@ impl NebulaWorkspace {
                 _ => Vec::new(),
             }
         }));
+        self.pane_sidebar
+            .sync_projects(self.pane_groups.groups().iter().map(|group| &group.directory));
     }
 
     pub(super) fn active_pane_project(&self) -> Option<model::PaneProject> {

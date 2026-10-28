@@ -13,6 +13,29 @@ pub(super) fn supports_project(launch: &LaunchSession) -> bool {
 }
 
 impl NebulaWorkspace {
+    pub(super) fn toggle_sidebar_project(
+        &mut self,
+        directory: &ProjectDirectory,
+        cx: &mut Context<Self>,
+    ) {
+        self.pane_groups.toggle_collapsed(directory);
+        cx.notify();
+    }
+
+    pub(super) fn pin_sidebar_project(
+        &mut self,
+        directory: &ProjectDirectory,
+        cx: &mut Context<Self>,
+    ) {
+        self.pane_groups.toggle_pinned(directory);
+        if let Some(index) =
+            self.sidebar_rows().iter().position(|row| row == &Row::Project(directory.clone()))
+        {
+            self.pane_sidebar.scroll.scroll_to_item(index);
+        }
+        cx.notify();
+    }
+
     pub(in crate::gpui_shell::workspace) fn begin_sidebar_tab_drag(
         &mut self,
         id: u64,

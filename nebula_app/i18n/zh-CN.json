@@ -1485,7 +1485,12 @@
       "new_session_in_project": "在此项目中新建会话",
       "local_shell_required": "请选择 Windows 本地 Shell 后创建项目会话。",
       "directory_unavailable": "项目文件夹不可用：{path}",
-      "drag_tab": "拖动整个标签及其中的全部分栏"
+      "drag_tab": "拖动整个标签及其中的全部分栏",
+      "collapse_project": "折叠项目",
+      "expand_project": "展开项目",
+      "pin_project": "置顶项目",
+      "unpin_project": "取消置顶",
+      "project_branch": "分支：{branch}"
     },
     "pane": {
       "rename_hint": "双击重命名；Enter 或点击外部保存，Esc 取消。清空恢复自动标题，重新编辑可撤销已保存的名称。",
