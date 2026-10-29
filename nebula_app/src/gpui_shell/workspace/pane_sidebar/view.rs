@@ -159,6 +159,7 @@ impl NebulaWorkspace {
             return div().into_any_element();
         };
         let theme = cx.theme();
+        let colors = super::colors::Colors::new(cx);
         let group = self.pane_groups.groups().iter().find(|group| group.panes.contains(&id));
         let grouped = group.is_some();
         let last_in_group = group.is_some_and(|group| group.panes.last() == Some(&id));
@@ -178,6 +179,11 @@ impl NebulaWorkspace {
             active,
             panes.len() == 1 && self.meta(index).has_bell,
         );
+        let icon_color = if pane.view.read(cx).runtime_agent().is_some() {
+            colors.foreground
+        } else {
+            colors.shell
+        };
         let icon = title
             .logo
             .map(|image| {
@@ -187,6 +193,7 @@ impl NebulaWorkspace {
                 div()
                     .size(px(17.0))
                     .font_family(crate::font_install::SYMBOL_FONT_FAMILY)
+                    .text_color(icon_color)
                     .child(title.glyph.unwrap_or("\u{f489}"))
                     .into_any_element()
             });
@@ -216,7 +223,7 @@ impl NebulaWorkspace {
             .cursor_pointer()
             .overflow_hidden()
             .text_size(px(13.0))
-            .text_color(if active { theme.sidebar_accent_foreground } else { theme.foreground })
+            .text_color(colors.foreground)
             .when(active, |row| row.bg(theme.sidebar_accent))
             .hover(|row| row.bg(theme.list_hover))
             .active(|row| row.bg(theme.list_active))
@@ -268,7 +275,7 @@ impl NebulaWorkspace {
                         .bottom(px(5.0))
                         .w(px(3.0))
                         .rounded_full()
-                        .bg(theme.primary),
+                        .bg(colors.selection_indicator),
                 )
             })
             .when(grouped, |row| {
@@ -279,7 +286,7 @@ impl NebulaWorkspace {
                         .top(px(-GAP))
                         .w(px(1.0))
                         .h(px(if last_in_group { 17.0 + GAP } else { SESSION_HEIGHT + GAP }))
-                        .bg(theme.border),
+                        .bg(colors.tree),
                 )
                 .child(
                     div()
@@ -288,7 +295,7 @@ impl NebulaWorkspace {
                         .top(px(17.0))
                         .w(px(12.0))
                         .h(px(1.0))
-                        .bg(theme.border),
+                        .bg(colors.tree),
                 )
             })
             .child(
@@ -360,7 +367,7 @@ impl NebulaWorkspace {
                     .text_ellipsis()
                     .text_size(px(11.0))
                     .line_height(px(16.0))
-                    .text_color(theme.muted_foreground)
+                    .text_color(colors.muted)
                     .child(
                         pane.view.read(cx).submitted_preview().map(str::to_owned).unwrap_or_else(
                             || language.text(Message::WorkspaceSidebarNewSession).to_owned(),
@@ -377,13 +384,14 @@ impl NebulaWorkspace {
         cx: &Context<Self>,
     ) -> gpui::AnyElement {
         let theme = cx.theme();
+        let colors = super::colors::Colors::new(cx);
         match activity {
             SidebarActivity::Running => {
                 let (track, head) = crate::gpui_shell::theme::sidebar_spinner_colors(cx, active);
                 Self::spinner(self.spinner_phase, track, head, cx.weak_entity()).into_any_element()
             },
             SidebarActivity::Done => {
-                div().size(px(6.0)).rounded_full().bg(theme.primary).into_any_element()
+                div().size(px(6.0)).rounded_full().bg(colors.ready).into_any_element()
             },
             SidebarActivity::WaitingInput | SidebarActivity::Attention => Self::waiting_hand(
                 crate::font_install::SYMBOL_FONT_FAMILY.into(),

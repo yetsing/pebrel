@@ -40,6 +40,7 @@ const NEBULA_ICONS: &[(&str, &[u8])] = icons![
     "backup-lock",
     "backup-check",
     "pin",
+    "pin-outline",
     "pencil",
     "clipboard-paste",
     "shield",
@@ -145,6 +146,7 @@ pub mod nav {
     pub const MOUSE_POINTER: &str = "icons/nebula-mouse-pointer.svg";
     pub const SLIDERS: &str = "icons/nebula-sliders.svg";
     pub const PIN: &str = "icons/nebula-pin.svg";
+    pub const PIN_OUTLINE: &str = "icons/nebula-pin-outline.svg";
     /// 保存命令列表。闪电表达快捷执行，右侧三横线表达可管理的命令集合。
     pub const COMMAND_MANAGER: &str = "icons/nebula-command-manager.svg";
     /// 键盘。lucide 没有，而「按键映射」原来错挂在字号图标上。

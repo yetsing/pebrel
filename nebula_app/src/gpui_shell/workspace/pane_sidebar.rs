@@ -5,6 +5,7 @@ use crate::platform::project_directory::ProjectDirectory;
 
 mod actions;
 mod branches;
+mod colors;
 mod project_header;
 #[cfg(all(feature = "gpui-test-support", debug_assertions))]
 mod qa;

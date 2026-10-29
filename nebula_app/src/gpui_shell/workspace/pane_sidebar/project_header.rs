@@ -10,6 +10,7 @@ impl NebulaWorkspace {
     ) -> gpui::AnyElement {
         let language = crate::gpui_shell::config::ui_language(cx);
         let theme = cx.theme();
+        let colors = super::colors::Colors::new(cx);
         let Some(group) =
             self.pane_groups.groups().iter().find(|group| group.directory == directory)
         else {
@@ -42,11 +43,11 @@ impl NebulaWorkspace {
                 move || format!("sidebar-project-{path}")
             })
             .relative()
-            .h(px(60.0))
+            .h(px(38.0))
             .pt(px(8.0))
             .flex_shrink_0()
             .w_full()
-            .text_color(theme.foreground)
+            .text_color(colors.foreground)
             .child(
                 h_flex()
                     .h(px(30.0))
@@ -113,10 +114,92 @@ impl NebulaWorkspace {
                                     IconName::ChevronDown
                                 })
                                 .xsmall()
+                                .text_color(colors.icon)
                                 .flex_shrink_0(),
                             )
-                            .child(Icon::new(IconName::Folder).small().flex_shrink_0())
-                            .child(div().flex_1().min_w_0().truncate().child(name)),
+                            .child(
+                                Icon::new(IconName::Folder)
+                                    .small()
+                                    .text_color(colors.icon)
+                                    .flex_shrink_0(),
+                            )
+                            .child(
+                                h_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .gap_1()
+                                    .items_center()
+                                    .child(
+                                        h_flex()
+                                            .debug_selector({
+                                                let directory = group.directory.clone();
+                                                move || {
+                                                    format!(
+                                                        "sidebar-project-name-{}",
+                                                        directory.path().display()
+                                                    )
+                                                }
+                                            })
+                                            .min_w_0()
+                                            .text_color(colors.project)
+                                            .child(div().flex_shrink_0().child("["))
+                                            .child(div().min_w_0().truncate().child(name))
+                                            .child(div().flex_shrink_0().child("]")),
+                                    )
+                                    .when_some(branch, |row, branch| {
+                                        let tooltip: SharedString = language
+                                            .format(
+                                                Message::WorkspaceSidebarProjectBranch,
+                                                &[("branch", &branch)],
+                                            )
+                                            .into();
+                                        row.child(
+                                            h_flex()
+                                                .min_w_0()
+                                                .max_w(relative(0.45))
+                                                .flex_shrink_0()
+                                                .gap_1()
+                                                .items_center()
+                                                .text_size(px(11.0))
+                                                .font_weight(FontWeight::NORMAL)
+                                                .text_color(colors.branch)
+                                                .child(
+                                                    div()
+                                                        .flex_shrink_0()
+                                                        .font_family(
+                                                            crate::font_install::SYMBOL_FONT_FAMILY,
+                                                        )
+                                                        .child("\u{ea68}"),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .id(SharedString::from(format!(
+                                                            "sidebar-project-branch-{}",
+                                                            group.directory.path().display()
+                                                        )))
+                                                        .debug_selector({
+                                                            let directory = group.directory.clone();
+                                                            move || {
+                                                                format!(
+                                                                    "sidebar-project-branch-{}",
+                                                                    directory.path().display()
+                                                                )
+                                                            }
+                                                        })
+                                                        .min_w_0()
+                                                        .truncate()
+                                                        .tooltip(move |window, cx| {
+                                                            tab_presentation::tooltip(
+                                                                tooltip.clone(),
+                                                                window,
+                                                                cx,
+                                                            )
+                                                        })
+                                                        .child(branch),
+                                                ),
+                                        )
+                                    }),
+                            ),
                     )
                     .child(
                         Button::new(SharedString::from(format!(
@@ -130,7 +213,20 @@ impl NebulaWorkspace {
                         .ghost()
                         .xsmall()
                         .toggled(pinned)
-                        .icon(Icon::new(Icon::empty()).path(crate::gpui_shell::assets::nav::PIN))
+                        .icon(
+                            Icon::new(Icon::empty())
+                                .path(if pinned {
+                                    crate::gpui_shell::assets::nav::PIN
+                                } else {
+                                    crate::gpui_shell::assets::nav::PIN_OUTLINE
+                                })
+                                .text_color(if pinned { colors.pin } else { colors.icon })
+                                .rotate(gpui::radians(if pinned {
+                                    0.0
+                                } else {
+                                    -std::f32::consts::FRAC_PI_4
+                                })),
+                        )
                         .tooltip(language.text(if pinned {
                             Message::WorkspaceSidebarUnpinProject
                         } else {
@@ -166,48 +262,6 @@ impl NebulaWorkspace {
                             },
                         )),
                     ),
-            )
-            .child(
-                h_flex().pl(px(40.0)).pr_2().h(px(18.0)).w_full().gap_1().items_center().when_some(
-                    branch,
-                    |row, branch| {
-                        let tooltip: SharedString = language
-                            .format(Message::WorkspaceSidebarProjectBranch, &[("branch", &branch)])
-                            .into();
-                        row.child(
-                            div()
-                                .font_family(crate::font_install::SYMBOL_FONT_FAMILY)
-                                .text_size(px(11.0))
-                                .text_color(theme.muted_foreground)
-                                .child("\u{ea68}"),
-                        )
-                        .child(
-                            div()
-                                .id(SharedString::from(format!(
-                                    "sidebar-project-branch-{}",
-                                    group.directory.path().display()
-                                )))
-                                .debug_selector({
-                                    let directory = group.directory.clone();
-                                    move || {
-                                        format!(
-                                            "sidebar-project-branch-{}",
-                                            directory.path().display()
-                                        )
-                                    }
-                                })
-                                .flex_1()
-                                .min_w_0()
-                                .truncate()
-                                .text_size(px(11.0))
-                                .text_color(theme.muted_foreground)
-                                .tooltip(move |window, cx| {
-                                    tab_presentation::tooltip(tooltip.clone(), window, cx)
-                                })
-                                .child(branch),
-                        )
-                    },
-                ),
             )
             .into_any_element()
     }

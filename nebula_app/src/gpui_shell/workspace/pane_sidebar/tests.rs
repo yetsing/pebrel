@@ -191,8 +191,17 @@ fn project_branch_and_tree_fit_narrow_sidebar_and_react_to_language_and_theme(
             id
         })
     });
-    for theme in [nebula_settings::ThemeName::Nord, nebula_settings::ThemeName::Paper] {
+    for (theme, width) in [
+        (nebula_settings::ThemeName::Nord, 220.0),
+        (nebula_settings::ThemeName::Nord, 300.0),
+        (nebula_settings::ThemeName::Paper, 220.0),
+        (nebula_settings::ThemeName::Paper, 300.0),
+    ] {
         window.update(|_, cx| {
+            workspace.update(cx, |workspace, cx| {
+                workspace.sidebar_width = width;
+                cx.notify();
+            });
             let mut settings = crate::gpui_shell::config::Settings::load(theme);
             settings.shell_id = Some("cmd".into());
             settings.ui_language = if theme == nebula_settings::ThemeName::Paper {
@@ -205,11 +214,15 @@ fn project_branch_and_tree_fit_narrow_sidebar_and_react_to_language_and_theme(
         });
         draw(&mut window);
         let header = bounds(&mut window, format!("sidebar-project-{}", a.path().display()));
+        let name = bounds(&mut window, format!("sidebar-project-name-{}", a.path().display()));
         let branch = bounds(&mut window, format!("sidebar-project-branch-{}", a.path().display()));
         let pin = bounds(&mut window, format!("sidebar-project-pin-{}", a.path().display()));
         let add = bounds(&mut window, format!("sidebar-project-add-{}", a.path().display()));
         assert!(branch.left() >= header.left() && branch.right() <= header.right());
         assert!(branch.bottom() <= header.bottom());
+        assert_eq!(name.center().y, branch.center().y);
+        assert!(name.size.width > px(0.0) && branch.size.width > px(0.0));
+        assert!(name.right() <= branch.left() && branch.right() <= pin.left());
         assert!(pin.right() <= add.left() && add.right() <= header.right());
         let pane = bounds(&mut window, format!("sidebar-pane-{id}"));
         let preview = bounds(&mut window, format!("sidebar-pane-preview-{id}"));
