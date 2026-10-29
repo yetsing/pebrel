@@ -53,6 +53,64 @@ fn only_accepted_local_shell_input_updates_preview(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn native_agent_identity_hides_a_shell_wrapper_command_before_session_binding(
+    cx: &mut TestAppContext,
+) {
+    let (view, window, _) = super::super::startup_tests::open(cx);
+    view.update(window, |view, cx| {
+        shell(view, cx);
+        view.process_event(
+            TermEvent::UserVar {
+                name: "pebrel_input".into(),
+                value: "owner\nlaunch-codex-wrapper".into(),
+            },
+            cx,
+        );
+        assert_eq!(view.submitted_preview(), Some("launch-codex-wrapper"));
+        let (session, _, mut events, proxy) =
+            crate::gpui_shell::terminal::session::test_session_with_events();
+        view.session = Some(session);
+        let mut stream = nebula_terminal::event_loop::StreamProcessor::default();
+        stream.feed(
+            &mut view.session.as_ref().unwrap().term.lock(),
+            &proxy,
+            b"\x1b]7501;state=working:app=codex\x07",
+        );
+        while let Ok(event) = events.try_recv() {
+            view.process_event(event, cx);
+        }
+        assert!(view.runtime_agent().is_some_and(|agent| agent.kind == "codex"));
+        assert!(view.submitted_preview().is_none());
+    });
+}
+
+#[gpui::test]
+fn native_submission_ids_invalidate_late_reads_even_when_the_body_repeats(cx: &mut TestAppContext) {
+    let (view, window, _) = super::super::startup_tests::open(cx);
+    view.update(window, |view, cx| {
+        shell(view, cx);
+        view.running_program = Some("codex".into());
+        view.preview_native_submission("native-first".into(), cx);
+        let owner = view.input_preview.state.owner.clone().unwrap();
+        view.input_preview.state.commit("repeated body");
+        let earlier = view.input_preview.state.revision;
+        view.preview_native_submission("native-second".into(), cx);
+        assert_ne!(view.input_preview.state.revision, earlier);
+        assert!(!view.input_preview.state.publish(&owner, earlier, "late earlier body"));
+        assert_eq!(view.submitted_preview(), Some("repeated body"));
+        let current = view.input_preview.state.revision;
+        view.preview_native_submission("native-second".into(), cx);
+        assert_eq!(
+            view.input_preview.state.revision, current,
+            "polling one accepted ID is idempotent"
+        );
+        view.clear_foreground_agent_state(cx);
+        view.refresh_input_preview(cx);
+        assert!(view.input_preview.native_submission.is_none());
+    });
+}
+
+#[gpui::test]
 fn user_messages_are_scoped_and_do_not_change_turn_activity(cx: &mut TestAppContext) {
     let (view, window, _) = super::super::startup_tests::open(cx);
     view.update(window, |view, cx| {

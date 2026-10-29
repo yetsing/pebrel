@@ -27,6 +27,12 @@ fn progress_sidebar_activity(
 }
 
 impl TerminalView {
+    #[cfg(all(windows, debug_assertions, feature = "gpui-test-support"))]
+    pub(crate) fn qa_codex_capture_path(&self) -> Option<String> {
+        let capture = self.session.as_ref()?.codex_tui.as_ref()?.try_lock().ok()?;
+        Some(capture.qa_path().to_string_lossy().into_owned())
+    }
+
     pub(crate) fn is_remote_session(&self) -> bool {
         !self.suggest.suggest_env.is_this_machine()
     }
@@ -633,12 +639,17 @@ impl TerminalView {
             ));
         }
         let agent = self.runtime_agent();
-        let codex_submit = submit && agent.as_ref().is_some_and(|agent| agent.kind == "codex");
+        let codex_input = agent.as_ref().is_some_and(|agent| agent.kind == "codex");
+        let codex_submit = submit && codex_input;
+        let kimi_paste = agent.as_ref().is_some_and(|agent| agent.kind == "kimi")
+            && self.term_mode().contains(TermMode::BRACKETED_PASTE);
         if submit {
             self.capture_runtime_prompt();
         }
         let mut bytes = if codex_submit {
             crate::input::terminal_input::build_runtime_codex_submission(&text, self.term_mode())
+        } else if codex_input {
+            crate::input::terminal_input::build_runtime_codex_paste(&text, self.term_mode())
         } else {
             crate::input::terminal_input::build_runtime_text_sequence(&text, self.term_mode())
         };
@@ -662,7 +673,13 @@ impl TerminalView {
         if submit {
             self.suggest.last_committed.clone_from(&text);
         }
-        self.write_input(bytes, cx);
+        if kimi_paste && !text.is_empty() {
+            // Kimi's composer treats a burst of unframed text plus Enter as a
+            // multiline edit. Its negotiated paste boundary ends that burst.
+            self.paste_now_impl(&text, false, cx);
+        } else {
+            self.write_input(bytes, cx);
+        }
         if submit {
             // 极短命令可能在 120ms runtime pump 的两拍之间完成。提交动作
             // 本身先建立 Running 边沿，保证 prompt --wait 的 after_seq 不会
@@ -837,6 +854,19 @@ impl TerminalView {
             })
     }
 
+    fn codex_probe_program(&self) -> Option<&str> {
+        #[cfg(windows)]
+        let program = self
+            .effective_program_status()
+            .and_then(|status| status.app.as_deref())
+            .or(self.running_program.as_deref());
+        #[cfg(not(windows))]
+        let program = self.running_program.as_deref();
+        program.filter(|program| {
+            crate::ai_agents::AgentKind::parse(program) == Some(crate::ai_agents::AgentKind::Codex)
+        })
+    }
+
     /// Read the active conversation metadata when its hook has not reported an ID.
     /// File and process operations run on the background executor. Only results
     /// for the same foreground command and unchanged identity are applied.
@@ -844,17 +874,17 @@ impl TerminalView {
         if self.exited.is_some()
             || self.ai_session_probe_pending
             || self.ssh_destination.is_some()
-            || !self
-                .running_program
-                .as_deref()
-                .and_then(crate::ai_agents::AgentKind::parse)
-                .is_some_and(|agent| agent == crate::ai_agents::AgentKind::Codex)
+            || self.codex_probe_program().is_none()
         {
             return;
         }
         if self.last_ai_session_probe.is_some_and(|at| {
             at.elapsed()
-                < std::time::Duration::from_secs(if self.ai_session.is_some() { 10 } else { 2 })
+                < std::time::Duration::from_secs(if cfg!(windows) || self.ai_session.is_none() {
+                    2
+                } else {
+                    10
+                })
         }) {
             return;
         }
@@ -863,14 +893,26 @@ impl TerminalView {
         let pane_id = self.pane_id;
         let shell_pid = self.session.as_ref().map(|session| session.shell_pid);
         let previous_target = self.session_agent();
+        #[cfg(windows)]
+        let capture = self.session.as_ref().and_then(|session| session.codex_tui.clone());
         self.ai_session_probe_pending = true;
         self.last_ai_session_probe = Some(std::time::Instant::now());
         let work = cx.background_executor().spawn(async move {
+            #[cfg(windows)]
+            if let Some(capture) = capture {
+                return crate::platform::ai_session_identity::probe_codex_tui(shell_pid?, capture);
+            }
             crate::platform::ai_session_identity::probe_codex_session(
                 pane_id,
                 Some(&exec_context),
                 shell_pid,
             )
+            .map(|session| {
+                crate::platform::ai_session_identity::CodexProbeUpdate::Session {
+                    session,
+                    submission_id: None,
+                }
+            })
         });
         cx.spawn(async move |this, cx| {
             let session_id = work.await;
@@ -882,11 +924,26 @@ impl TerminalView {
                     view.ai_session_probe_epoch,
                     epoch,
                     view.session_agent() != previous_target,
-                    view.running_program.as_deref(),
+                    view.codex_probe_program(),
                 ) {
                     return;
                 }
-                if let Some(session) = session_id {
+                if let Some(crate::platform::ai_session_identity::CodexProbeUpdate::Clear) =
+                    session_id
+                {
+                    if view.ai_session.take().is_some() {
+                        view.invalidate_ai_session_probe();
+                        cx.emit(TerminalViewEvent::SessionIdentityChanged);
+                        cx.emit(TerminalViewEvent::PreviewChanged);
+                        cx.notify();
+                    }
+                    return;
+                }
+                if let Some(crate::platform::ai_session_identity::CodexProbeUpdate::Session {
+                    session,
+                    submission_id,
+                }) = session_id
+                {
                     log::debug!("agent session identity from active rollout: pane={pane_id}");
                     let target = crate::session::AgentSession {
                         source: "codex".to_owned(),
@@ -904,10 +961,14 @@ impl TerminalView {
                         source: "codex".to_owned(),
                         session_id: session.session_id,
                     });
+                    view.running_program = Some("codex".into());
                     if let Some(cwd) = session.cwd {
                         view.process_event(nebula_terminal::event::Event::CwdReport(cwd), cx);
                     }
                     view.ai_session_from_probe = true;
+                    if let Some(id) = submission_id {
+                        view.preview_native_submission(id, cx);
+                    }
                     cx.emit(TerminalViewEvent::TitleChanged);
                     cx.notify();
                 }

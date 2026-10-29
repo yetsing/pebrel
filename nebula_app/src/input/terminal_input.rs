@@ -313,19 +313,54 @@ pub(crate) fn build_runtime_text_sequence(text: &str, _mode: TermMode) -> Vec<u8
 /// A repaint or a fixed delay is not evidence that the input burst has ended.
 /// Call only for an identified Codex submission; shell input keeps its own path.
 pub(crate) fn build_runtime_codex_submission(text: &str, mode: TermMode) -> Vec<u8> {
-    let mut bytes = Vec::new();
+    let mut bytes = build_runtime_codex_paste(text, mode);
     if !text.is_empty() {
-        if mode.contains(TermMode::BRACKETED_PASTE) {
-            bytes.extend_from_slice(b"\x1b[200~");
-            let normalized = text.replace("\r\n", "\r").replace('\n', "\r");
-            bytes.extend_from_slice(normalized.replace("\x1b[201~", "").as_bytes());
-            bytes.extend_from_slice(b"\x1b[201~");
-        } else {
-            bytes.extend_from_slice(text.as_bytes());
-        }
         bytes.extend(build_runtime_sequence(RuntimeKey::Right, Default::default(), 1, mode));
     }
     bytes.extend(build_runtime_sequence(RuntimeKey::Enter, Default::default(), 1, mode));
+    bytes
+}
+
+/// Native Codex reads UTF-16 console events. ConPTY's interleaved surrogate
+/// key-ups poison that reader's pairing buffer, so supplementary characters use
+/// two adjacent key-down records. No physical key is held by these text records.
+pub(crate) fn build_runtime_codex_paste(text: &str, mode: TermMode) -> Vec<u8> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let bracketed = mode.contains(TermMode::BRACKETED_PASTE);
+    let normalized = if bracketed {
+        text.replace("\r\n", "\r").replace('\n', "\r").replace("\x1b[201~", "")
+    } else {
+        text.to_owned()
+    };
+    let mut bytes = Vec::new();
+    if bracketed {
+        bytes.extend_from_slice(b"\x1b[200~");
+    }
+    for ch in normalized.chars() {
+        #[cfg(target_os = "windows")]
+        if use_win32_input_mode(mode) && ch.len_utf16() == 2 {
+            let raw = RawKeyEventInfo {
+                virtual_key: 0,
+                scan_code: 0,
+                repeat_count: 1,
+                is_extended: false,
+                unicode_char: 0,
+                control_key_state: 0,
+            };
+            let mut records = String::new();
+            for &unit in ch.encode_utf16(&mut [0; 2]).iter() {
+                append_raw_key_event(&mut records, raw, ElementState::Pressed, unit);
+            }
+            bytes.extend_from_slice(records.as_bytes());
+            continue;
+        }
+        bytes.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes());
+    }
+    if bracketed {
+        bytes.extend_from_slice(b"\x1b[201~");
+    }
     bytes
 }
 
@@ -1255,6 +1290,22 @@ mod vt_tests {
         assert!(records[1].starts_with("\x1b[39;"));
         assert!(records[2].starts_with("\x1b[13;"));
         assert!(records[3].starts_with("\x1b[13;"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn codex_native_paste_preserves_surrogate_pairs_without_interleaved_releases() {
+        let text = "A中🙂🚀\nB";
+        let vt = TermMode::BRACKETED_PASTE;
+        assert_eq!(build_runtime_codex_paste(text, vt), "\x1b[200~A中🙂🚀\rB\x1b[201~".as_bytes());
+        let native = vt | TermMode::WIN32_INPUT_MODE;
+        assert_eq!(build_runtime_codex_paste(text, native), "\x1b[200~A中\x1b[0;0;55357;1;0;1_\x1b[0;0;56898;1;0;1_\x1b[0;0;55357;1;0;1_\x1b[0;0;56960;1;0;1_\rB\x1b[201~".as_bytes());
+        assert!(build_runtime_codex_paste("", native).is_empty());
+        assert_eq!(
+            build_runtime_text_sequence(text, native),
+            text.as_bytes(),
+            "ordinary shell text keeps the native ConPTY path"
+        );
     }
 
     #[cfg(target_os = "windows")]

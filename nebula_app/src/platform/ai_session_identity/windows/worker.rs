@@ -62,6 +62,10 @@ impl Drop for UpdatePause {
 }
 
 pub(super) fn probe(pid: u32, created: u64) -> Option<super::CodexSession> {
+    super::parse_probe_context(&probe_output(pid, created)?)
+}
+
+pub(super) fn probe_output(pid: u32, created: u64) -> Option<String> {
     if UPDATE_PAUSES.load(Ordering::Acquire) != 0 {
         return None;
     }
@@ -70,8 +74,7 @@ pub(super) fn probe(pid: u32, created: u64) -> Option<super::CodexSession> {
     if UPDATE_PAUSES.load(Ordering::Acquire) != 0 {
         return None;
     }
-    let output = query_slot(&mut slot, pid, created, deadline).ok()?;
-    super::parse_probe_context(&output)
+    query_slot(&mut slot, pid, created, deadline).ok()
 }
 
 fn lock_worker(deadline: Instant) -> io::Result<MutexGuard<'static, Option<Worker>>> {

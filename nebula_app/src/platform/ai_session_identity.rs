@@ -16,6 +16,15 @@ use std::time::{Duration, Instant};
 mod macos;
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+pub(crate) use windows::tui_capture::Capture as CodexTuiCapture;
+#[cfg(windows)]
+pub(crate) use windows::tui_capture::probe as probe_codex_tui;
+
+pub(crate) enum CodexProbeUpdate {
+    Session { session: CodexSession, submission_id: Option<String> },
+    Clear,
+}
 
 /// Native probe helpers run before GUI, hooks or CLI setup.
 pub(crate) fn run_helper_if_requested() -> Option<i32> {
@@ -163,10 +172,11 @@ fn parse_probe_context(output: &str) -> Option<CodexSession> {
         if !valid_uuid(id) {
             continue;
         }
-        // Codex's main interactive thread is marked as a CLI/user thread.
+        // Interactive Codex can inherit a VS Code originator even in a native TUI.
         // Keep accepting older session_meta lines that lack these fields, but
         // reject an explicit guardian/sub-agent marker.
-        if !matches_optional_string(payload, &meta, "source", "cli")
+        if !(matches_optional_string(payload, &meta, "source", "cli")
+            || matches_optional_string(payload, &meta, "source", "vscode"))
             || !matches_optional_string(payload, &meta, "thread_source", "user")
         {
             continue;

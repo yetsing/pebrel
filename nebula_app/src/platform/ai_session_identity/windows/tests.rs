@@ -43,13 +43,18 @@ fn hold_rollouts() {
     }
 }
 
-struct Fixture {
+pub(super) struct Fixture {
     child: Child,
     worker: OwnedHandle,
 }
 
 impl Fixture {
-    fn launch(directory: &Path, executable: &Path, paths: &[&Path], powershell: bool) -> Self {
+    pub(super) fn launch(
+        directory: &Path,
+        executable: &Path,
+        paths: &[&Path],
+        powershell: bool,
+    ) -> Self {
         let ready = directory.join("ready");
         let mut command = if powershell {
             let mut command = Command::new("powershell.exe");
@@ -101,7 +106,11 @@ impl Fixture {
         Self { child, worker }
     }
 
-    fn finish(mut self) {
+    pub(super) fn shell_pid(&self) -> u32 {
+        self.child.id()
+    }
+
+    pub(super) fn finish(mut self) {
         self.child.stdin.take().unwrap().write_all(b"x\n").unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {

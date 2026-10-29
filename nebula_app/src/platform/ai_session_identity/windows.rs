@@ -1,6 +1,7 @@
 //! Native handle inspection is confined to an owned, reusable helper process.
 //! Never seek/read a duplicated live handle: it shares Codex's file position.
 
+pub(super) mod tui_capture;
 mod worker;
 
 pub(super) use worker::UpdatePause;
@@ -141,6 +142,15 @@ fn collect_records(shell_pid: u32, created: u64) -> Option<String> {
                 continue;
             }
             let Some(path) = file_path(copied.0) else { continue };
+            if let Some(metadata) = tui_capture::handle_metadata(&path, copied.0, times[&row.pid]) {
+                use std::fmt::Write as _;
+                writeln!(output, "{}\t0\t{path}\t{metadata}", row.pid).ok()?;
+                records += 1;
+                if records >= MAX_PROBE_RECORDS || output.len() >= MAX_PROBE_OUTPUT {
+                    return None;
+                }
+                continue;
+            }
             if crate::session::codex_rollout_id(&path).is_none() {
                 continue;
             }

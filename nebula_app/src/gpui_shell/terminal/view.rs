@@ -1267,7 +1267,9 @@ impl TerminalView {
         if !self.term_mode().contains(TermMode::ALT_SCREEN) {
             crate::display::nebula_input_text(&mut self.suggest, &normalized);
         }
-        let bytes = if self.term_mode().contains(TermMode::BRACKETED_PASTE) {
+        let bytes = if self.runtime_agent().is_some_and(|agent| agent.kind == "codex") {
+            crate::input::terminal_input::build_runtime_codex_paste(&normalized, self.term_mode())
+        } else if self.term_mode().contains(TermMode::BRACKETED_PASTE) {
             let mut b = b"\x1b[200~".to_vec();
             // 过滤粘贴内容里的收尾哨兵，防止注入截断。
             b.extend_from_slice(normalized.replace("\x1b[201~", "").as_bytes());

@@ -157,7 +157,7 @@ regex = "1.13.1"
 # 无条件依赖；此前按 `cfg(not(target_os = "macos"))` 排除会让 macOS 目标在
 # 编译期找不到 crate（2026-09-02 交叉 check 首个暴露的问题）。
 image = { version = "0.25.8", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"] }
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.40.2", features = ["bundled", "hooks"] }
 sha1 = "0.11.0"
 
 raw-window-handle = { version = "=0.6.2", optional = true }
@@ -295,6 +295,7 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_DataExchange",
     "Win32_System_Memory",
     "Win32_System_IO",
+    "Win32_System_Ioctl",
     # 串口 DCB 与读写超时配置（serial_session）。
     "Win32_Devices_Communication",
     "Win32_Security",

@@ -81,6 +81,9 @@ impl Dimensions for GridSize {
 }
 
 pub struct TerminalSession {
+    #[cfg(windows)]
+    pub(super) codex_tui:
+        Option<Arc<std::sync::Mutex<crate::platform::ai_session_identity::CodexTuiCapture>>>,
     pub term: Arc<FairMutex<Term<EventProxy>>>,
     pub notifier: Notifier,
     pub(super) native_prompt: super::event_mailbox::NativePromptState,
@@ -118,6 +121,8 @@ pub(super) fn test_session_with_events() -> (
     let (sender, receiver) = nebula_terminal::event_loop::EventLoopSender::standalone().unwrap();
     (
         TerminalSession {
+            #[cfg(windows)]
+            codex_tui: None,
             term: Arc::new(FairMutex::new(term)),
             notifier: Notifier(sender),
             native_prompt: proxy.events.native_prompt.clone(),
@@ -194,8 +199,24 @@ pub(super) fn local_options(
 pub fn spawn(
     window_size: WindowSize,
     term_config: Config,
-    options: tty::Options,
+    mut options: tty::Options,
 ) -> std::io::Result<SpawnedSession> {
+    #[cfg(windows)]
+    let codex_tui = if options
+        .shell
+        .as_ref()
+        .is_some_and(|shell| crate::shell_detect::is_wsl_launcher(shell.program()))
+    {
+        None
+    } else {
+        match crate::platform::ai_session_identity::CodexTuiCapture::prepare(&mut options.env) {
+            Ok(capture) => capture,
+            Err(error) => {
+                log::warn!("Could not prepare the private Codex TUI source: {error}");
+                None
+            },
+        }
+    };
     let (tx, rx) = super::event_mailbox::channel();
     let (stage_tx, stage_rx) = unbounded();
     let proxy = EventProxy {
@@ -230,6 +251,8 @@ pub fn spawn(
 
     Ok((
         TerminalSession {
+            #[cfg(windows)]
+            codex_tui,
             term,
             notifier,
             native_prompt,
@@ -269,6 +292,8 @@ pub fn spawn_serial(
 
     Ok((
         TerminalSession {
+            #[cfg(windows)]
+            codex_tui: None,
             term,
             notifier: Notifier(sender),
             native_prompt,
@@ -321,6 +346,8 @@ pub fn spawn_ssh(
 
     Ok((
         TerminalSession {
+            #[cfg(windows)]
+            codex_tui: None,
             term,
             notifier: Notifier(sender),
             native_prompt,

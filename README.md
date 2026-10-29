@@ -98,6 +98,10 @@ each agent's activity, and read its output without leaving the application.
 - Native Windows Codex identity refreshes share a background helper with startup
   cursor feedback disabled. Each refresh reads current metadata and remains bounded;
   a stalled helper is stopped before a later refresh creates its replacement.
+- On native Windows, Codex 0.165.0's default shared daemon uses verified native
+  submission identities to bind each pane to its conversation. Restored conversations
+  show a placeholder until a submission can be linked. Explicit Codex session
+  recording settings are preserved.
 - On Windows, optional background residency keeps running sessions alive when you
   close the window. Restoring a conversation after the process exits is a separate
   feature and requires a supported CLI and a usable session identity.

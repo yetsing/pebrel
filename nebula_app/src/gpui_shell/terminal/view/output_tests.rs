@@ -37,6 +37,31 @@ fn runtime_submission_codex_paste_and_no_submit_preserve_their_contracts(cx: &mu
 }
 
 #[gpui::test]
+fn runtime_submission_kimi_uses_negotiated_paste_and_keeps_draft_and_empty_enter(
+    cx: &mut TestAppContext,
+) {
+    let (view, window, receiver) = open(cx);
+    view.update(window, |view, cx| {
+        view.running_program = Some("kimi".into());
+        feed(view, b"\x1b[?2004h");
+        view.runtime_prompt("draft中文".into(), false, cx).unwrap();
+        assert!(matches!(receiver.try_recv().unwrap(), Msg::Input(bytes) if bytes.as_ref() == "\x1b[200~draft中文\x1b[201~".as_bytes()));
+        assert!(view.pending_runtime_submit.is_none());
+        view.runtime_prompt("accepted".into(), true, cx).unwrap();
+        assert!(matches!(receiver.try_recv().unwrap(), Msg::Input(bytes) if bytes.as_ref() == b"\x1b[200~accepted\x1b[201~"));
+        assert!(receiver.try_recv().is_err(), "Enter waits for echo, rather than joining the input burst");
+        feed(view, b"accepted");
+        view.flush_pending_runtime_submit(cx);
+        assert!(matches!(receiver.try_recv().unwrap(), Msg::Input(bytes) if bytes.as_ref() == b"\r"));
+        view.flush_pending_runtime_submit(cx);
+        assert!(receiver.try_recv().is_err(), "submit is sent once");
+        assert_eq!(view.runtime_prompt(String::new(), true, cx).unwrap_err().code, "invalid_params");
+        view.runtime_send_key(crate::runtime_api::RuntimeKey::Enter, Default::default(), 1, cx).unwrap();
+        assert!(matches!(receiver.try_recv().unwrap(), Msg::Input(bytes) if bytes.as_ref() == b"\r"));
+    });
+}
+
+#[gpui::test]
 fn working_directory_copy_preserves_prompt_selection_and_utf8(cx: &mut TestAppContext) {
     let (view, window, _) = open(cx);
     let prompt = "    ~    15:30:27  ";

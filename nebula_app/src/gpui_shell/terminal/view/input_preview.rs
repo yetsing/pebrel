@@ -18,6 +18,7 @@ pub(super) struct Preview {
     queued_without_order: bool,
     queue_clear_since: Option<Instant>,
     opencode_home_since: Option<Instant>,
+    native_submission: Option<String>,
 }
 
 impl TerminalView {
@@ -30,6 +31,9 @@ impl TerminalView {
 
     fn preview_owner(&self) -> Option<Owner> {
         if !cfg!(windows) || self.is_remote_session() || self.exited.is_some() {
+            return None;
+        }
+        if self.runtime_agent().is_some() && self.runtime_chat_agent().is_none() {
             return None;
         }
         Some(match self.runtime_chat_agent() {
@@ -55,8 +59,21 @@ impl TerminalView {
             self.input_preview.queued_without_order = false;
             self.input_preview.queue_clear_since = None;
             self.input_preview.opencode_home_since = None;
+            self.input_preview.native_submission = None;
             cx.emit(TerminalViewEvent::PreviewChanged);
         }
+    }
+
+    pub(super) fn preview_native_submission(&mut self, id: String, cx: &mut Context<Self>) {
+        self.sync_preview_owner(cx);
+        if self.input_preview.native_submission.as_ref() == Some(&id) {
+            return;
+        }
+        self.input_preview.native_submission = Some(id);
+        self.input_preview.state.revision = self.input_preview.state.revision.wrapping_add(1);
+        self.input_preview.task = None;
+        self.input_preview.last_read = None;
+        self.refresh_input_preview(cx);
     }
 
     pub(super) fn preview_shell_report(&mut self, name: &str, value: &str, cx: &mut Context<Self>) {
