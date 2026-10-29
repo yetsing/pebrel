@@ -88,6 +88,8 @@ Pebrel（原名 Nebula）把本地 Shell、远程主机、文件和 AI 命令行
 - Windows 项目侧栏可预览已接受的 PowerShell 命令，以及来源已核实的 Codex、
   OpenCode、Pi 和 Kimi 用户消息，多行内容最多显示两行。缺少可靠会话元数据、
   CMD 输入，以及 Kimi 排队期间显示“新会话”占位；队列处理结束后，按主会话记录恢复预览。
+  OpenCode、Pi 和 Kimi 需要在设置中启用对应的 Agent 接入，并重启 CLI，
+  使桥接插件或 Hook 生效。
 - 保存工作区布局，可选恢复 AI 对话。在 WSL 与 Linux 中，Codex 的 hook 未上报 ID 时，
   可从当前会话元数据补全身份。
 - Windows 原生 Codex 身份刷新复用后台辅助进程，并禁用启动光标提示。每次仍读取当前

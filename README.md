@@ -93,6 +93,8 @@ each agent's activity, and read its output without leaving the application.
   has a verified source. Multiline text wraps to two lines. Missing metadata,
   CMD input, and Kimi's pending queue show **New session**. Kimi resumes previews
   from its main conversation after the queue finishes.
+  For OpenCode, Pi, and Kimi, enable the corresponding Agent integration in Settings
+  and restart the CLI so its plugin or hooks take effect.
 - Saved workspace layouts and optional AI conversation restoration. On WSL and
   Linux, Codex session metadata can supply an ID when its hook has not reported one.
 - Native Windows Codex identity refreshes share a background helper with startup

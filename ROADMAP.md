@@ -9,16 +9,17 @@
   本次已修复 WSL 测试绕过假启动器的隔离缺陷，未改造该通用创建路径；现场证据与范围见
   [WSL 启动器隔离记录](architecture/notes/nebula_app/platform/wsl_hooks/2026-10-27-launcher-isolation.md)。
 - Windows 分支便携包：已配置 `feature/moni-one` 推送自动构建与手动触发入口，
-  独立上传 Windows x64 ZIP 到 Actions Artifacts。提交 `845d1f35` 的首次远端构建
-  已成功，ZIP 已下载并核对摘要、清单与程序版本；用户已确认 S3 人工验证正常。手动入口的默认分支
-  要求和下载方式见 [构建指南](docs/windows-portable-build.md)。
-- 进行中：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
+  独立上传 Windows x64 ZIP 到 Actions Artifacts。S6 提交 `5f027305` 已推送，
+  对应远端构建成功；ZIP 已下载并核对官方 artifact 摘要、包摘要、清单、架构及版本。
+  当前包版本为 `2.3.1 (5f02730)`，用户已确认人工验收通过。详情见 [S6 记录](PANE_SIDEBAR_S6.md)，
+  手动入口与下载方式见 [构建指南](docs/windows-portable-build.md)。
+- 已完成：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
   命令行与 AI Agent，macOS、Linux、WSL、SSH 暂不纳入实现与验收。
   一个条目对应一个 Pane；打开项目按所选目录建组，项目内新建和分屏继承归属，
   未指定项目归属的新终端按启动目录归组。AI Agent 预览最近一次已提交的用户消息，Shell 预览
   最近一次已提交的命令。S1 数据来源核验已完成：来源与缺口清单、夹具、
   四种 Agent 的原生用户消息及用户真实 Shell 键盘/剪贴板代表样本均已核对。
-  采集与绑定现已在 S4 接线，Runtime 输入边界与完整人工验收留在 S6。
+  采集与绑定已在 S4 接线，Runtime 输入边界与完整人工验收已在 S6 完成。
   S2 已完成 Pane ID 投影、固定/待归属、
   创建继承、稳定顺序和生命周期接线；GPUI 依赖缓存已补齐，当前源码编译与针对性
   Rust/GPUI 测试通过。S3 已接入 Windows 项目头、双行 Pane 条目、创建入口与精确导航；
@@ -28,10 +29,11 @@
   用户已明确允许 Kimi 队列占位，结束后按原生主会话恢复；CMD 和无可靠绑定时占位。
   OpenCode 空白新会话及无 Agent PID 的同桥实例替换已补齐。S5 已完成：窗口内项目折叠、
   稳定置顶、固定目录分支快照和树形排版已通过回归及四组原生窗口检查。
-  S6 进行中：Codex emoji 与 Kimi Runtime 提交边界已修复；默认共享 daemon
+  S6 已完成：Codex emoji 与 Kimi Runtime 提交边界已修复；默认共享 daemon
   的原生提交 UUID、真实 TUI 句柄与服务端接受记录接入通过同目录双 Pane 实机验证。
   相关 Rust/GPUI 回归 368 项通过；四组主题/宽度原生窗口、产品检查和本地
-  release ZIP 解压启动检查通过。S6 现仅待用户人工验收，不提前标记整个阶段完成。
+  release ZIP 解压启动检查通过，提交后的 Actions 包也已下载核对。用户确认人工验收通过，
+  开启 Pebrel Hook 接入后，OpenCode 和 Kimi 均能正常显示最近提交。
   验证、便携包摘要及采集边界见 [S6 记录](PANE_SIDEBAR_S6.md)。见
   [S1 核验记录](PANE_SIDEBAR_S1.md) 与
   [项目归属设计](architecture/notes/nebula_app/gpui_shell/workspace/2026-10-27-pane-project-binding.md)。
@@ -40,6 +42,14 @@
 
 ## 最近完成
 
+- 2026-10-29 17:03：S6 人工验收通过，Windows 本地 Pane 侧栏 S1 至 S6 完成。
+  用户确认开启 Pebrel Hook 后，OpenCode 和 Kimi 均能正常显示最近提交，体验正常。
+  中英文 README、需求路线表和 S6 记录补齐接入及重启 CLI 的前置条件；
+  本轮只更新文档，保留既有采集边界，未改预览代码或代用户修改配置。
+- 2026-10-29 15:36：普通推送 S6 提交 `5f027305` 到 `yetsing/pebrel` 的
+  `feature/moni-one`，远端指向核对一致；Windows portable ZIP 和 OpenCode bridge
+  两个 Actions 运行成功。已下载当前提交的远端便携包并解压核验，人工验收仍待完成。
+  构建链接、包摘要与清单见 [S6 记录](PANE_SIDEBAR_S6.md)，本次未创建标签或 Release。
 - 2026-10-29 08:50：完成 S6 的 Codex emoji、Kimi Runtime 提交边界修复，以及
   Codex 0.165.0 默认共享 daemon 的精确 Pane 绑定。原生 TUI 句柄、提交 UUID
   和服务端接受记录共同确认身份；支持继承 VS Code originator 的主会话，保留
@@ -101,6 +111,19 @@
 
 ## 最近验证
 
+- 2026-10-29 17:16：S6 收口文档提交前复核通过。79 个本地文档链接路径、
+  进度顺序及记录数量、架构门禁和差异空白检查通过；Rust 与 Cargo 文件摘要
+  同已验证构建快照一致，本轮复用既有行为测试及用户人工验收结果。
+- 2026-10-29 17:03：用户在远端便携包 `2.3.1 (5f02730)` 上完成配置后的人工复验，
+  确认 OpenCode 和 Kimi 最近提交预览均正常；结合此前其他人工验收通过的结果，
+  S6 验收完成。此前排查确认了旧 OpenCode 插件和未启用的 Kimi 接入，
+  不再将普通提交显示占位记为待修复异常。结果与前置条件见 [S6 记录](PANE_SIDEBAR_S6.md)。
+- 2026-10-29 15:36：远端运行 `40834693046` 的源码 SHA 为
+  `5f0273057b1561353e2fb4e6fecca07f4bf48ecb`，Windows 构建及上传成功。
+  下载归档与官方 artifact digest、大小一致，两层 ZIP CRC、18 文件清单、五个
+  x64 载荷及固定控制台运行库摘要通过。解压程序版本为 `2.3.1 (5f02730)`，
+  GPUI help 标记正确；便携包 SHA256 与构建日志一致，详见 [S6 记录](PANE_SIDEBAR_S6.md)。
+  本轮仅执行非交互检查，没有将其视为人工窗口验收通过。
 - 2026-10-29 10:29：S6 提交前复核通过。Rust 与 Cargo 文件摘要同已验证的
   构建快照一致，复用 08:50 的行为、实机与便携包证据；架构门禁、本次 Rust
   格式、79 个本地文档链接、note 结构、进度顺序/数量和差异空白检查通过。
@@ -226,10 +249,6 @@
   `cargo fmt --all -- --check` 因现有源码工作树 CRLF 换行失败；Rust 对话测试
   因缺少 GPUI fork revision 缓存未进入编译，产品构建与 Rust 行数测试未执行。
   当时尚未通过指定可执行文件接入 Runtime；后续实机补测见 15:48 记录。
-- 2026-10-27 06:54：提交前核对 Windows 本机范围、各创建入口的项目归属、九项
-  验收标准和六阶段待开始状态，检查两份文档的相对链接及格式，均通过；使用
-  Python 3.12 执行 `scripts/check_architecture.py`，1156 个源文件、10 个 crate
-  的架构检查通过；`git diff --check` 通过。仅文档改动，未运行应用测试。
 
 ## 当前迁移快照（2026-08-14）
 
