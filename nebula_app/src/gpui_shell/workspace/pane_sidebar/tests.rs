@@ -175,6 +175,42 @@ fn fold_pin_keyboard_and_new_session_keep_live_panes_and_stable_membership(
 }
 
 #[gpui::test]
+fn adjacent_tab_shortcuts_follow_pinned_sidebar_panes(cx: &mut TestAppContext) {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let (workspace, mut window) = fixture(cx);
+    let (first, second, third) = window.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            let first = add(workspace, a.path(), window, cx);
+            let second = add(workspace, b.path(), window, cx);
+            let third = add(workspace, a.path(), window, cx);
+            workspace.pin_sidebar_project(&ProjectDirectory::new(b.path()).unwrap(), cx);
+            (first, second, third)
+        })
+    });
+    window.simulate_keystrokes("ctrl-tab");
+    window.run_until_parked();
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(workspace.active_terminal_pane_id(), Some(second))
+    });
+    window.simulate_keystrokes("ctrl-tab");
+    window.run_until_parked();
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(workspace.active_terminal_pane_id(), Some(first))
+    });
+    window.simulate_keystrokes("ctrl-shift-tab");
+    window.run_until_parked();
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(workspace.active_terminal_pane_id(), Some(second))
+    });
+    window.simulate_keystrokes("ctrl-shift-tab");
+    window.run_until_parked();
+    workspace.read_with(&window, |workspace, _| {
+        assert_eq!(workspace.active_terminal_pane_id(), Some(third))
+    });
+}
+
+#[gpui::test]
 fn project_branch_and_tree_fit_narrow_sidebar_and_react_to_language_and_theme(
     cx: &mut TestAppContext,
 ) {

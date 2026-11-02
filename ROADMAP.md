@@ -19,9 +19,11 @@
   本次已修复 WSL 测试绕过假启动器的隔离缺陷，未改造该通用创建路径；现场证据与范围见
   [WSL 启动器隔离记录](architecture/notes/nebula_app/platform/wsl_hooks/2026-10-27-launcher-isolation.md)。
 - Windows 分支便携包：已配置 `feature/moni-one` 推送自动构建与手动触发入口，
-  独立上传 Windows x64 ZIP 到 Actions Artifacts。S6 提交 `5f027305` 已推送，
-  对应远端构建成功；ZIP 已下载并核对官方 artifact 摘要、包摘要、清单、架构及版本。
-  当前包版本为 `2.3.1 (5f02730)`，用户已确认人工验收通过。详情见 [S6 记录](PANE_SIDEBAR_S6.md)，
+  独立上传 Windows x64 ZIP 到 Actions Artifacts。最新侧栏改动提交 `cb2c425f` 已推送，
+  [对应构建](https://github.com/yetsing/pebrel/actions/runs/40866797678)成功；
+  ZIP 已下载并核对官方 artifact 摘要、构建日志包摘要、清单、架构及版本。
+  当前包版本为 `2.3.1 (cb2c425)`，本轮配色及项目头改动仍待人工验收。
+  S6 提交 `5f027305` 的包已获用户人工验收通过，详情见 [S6 记录](PANE_SIDEBAR_S6.md)；
   手动入口与下载方式见 [构建指南](docs/windows-portable-build.md)。
 - 已完成：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
   命令行与 AI Agent，macOS、Linux、WSL、SSH 暂不纳入实现与验收。
@@ -52,6 +54,12 @@
 
 ## 最近完成
 
+- 2026-11-02 17:27：Windows 侧栏模式的 Ctrl+Tab / Ctrl+Shift+Tab 按当前项目置顶与
+  Pane 排列顺序循环；折叠组中的 Pane 仍可切换并在激活时展开。顶栏及其他平台维持原导航。
+- 2026-10-29 19:51：普通推送 `cb2c425f` 至 `feature/moni-one`，远端指向核对一致；
+  Windows portable ZIP 运行 `40866797678` 成功。对应 ZIP 已下载并解压，
+  程序版本为 `2.3.1 (cb2c425)`，包含侧栏前景色、项目头同行、置顶图钉和项目名括号。
+  本轮未创建标签或 Release；原生窗口人工验收待用户完成。
 - 2026-10-29 19:30：一级项目名称以半角 `[]` 包裹，两侧括号独立保留，长名称仅
   截断中间文字；分支同行、项目身份与辅助技术标签沿用现有逻辑。
   深浅主题窄侧栏的括号显示、分支及操作按钮空间已核对。
@@ -134,6 +142,13 @@
 
 ## 最近验证
 
+- 2026-11-02 17:27：置顶项目与创建顺序不一致时的 Windows 侧栏双向循环回归通过
+  （`adjacent_tab_shortcuts_follow_pinned_sidebar_panes`，1 项）；改动 Rust 文件格式检查通过。
+- 2026-10-29 19:51：Actions 包交付校验通过：完整提交与成功运行一致，官方 artifact
+  摘要和归档大小匹配，两层 ZIP CRC、18 文件清单、5 个 x64 PE 载荷及固定控制台
+  运行库摘要通过。便携 ZIP 为 41,280,966 字节，SHA256
+  `35FB06E2FD7ECCF624440F494CFF957127554BDD419E78B55FF3CB1875376F74`，
+  与生产端构建日志一致；解压程序 `--version` 与 GPUI `--help` 检查通过。
 - 2026-10-29 19:30：项目名括号改动的真实侧栏控件回归 10 项通过，覆盖长名称、
   深浅主题与 220/300 像素布局。原生夹具另在深浅主题 220 像素各执行一次，
   截图确认省略名称仍显示完整两侧括号，置顶、折叠、选择与关闭等操作通过。
@@ -249,23 +264,6 @@
   Rust 行数测试二进制读取当前工作树，2 项通过。精确核对命令与父进程身份后，结束旧测试产生的
   挂起 WSL；原 PowerShell 随即自然退出，会话 99806 返回 0，确认其占用输出管道是直接原因。
   通用 Job 创建/接管竞态尚未修复；实际 WSL 安装与真实来宾集成未作为本次测试执行。
-- 2026-10-27 19:24：Windows 使用 actionlint 1.7.12 检查新增工作流，通过；PowerShell
-  解析打包步骤，通过。用桩程序执行实际步骤，成功、读取版本失败、打包失败 3 个场景
-  均符合预期，失败时不写出成功元数据。CI 原生入口、缓存、Stable/Preview 打包及
-  Git 属性合同共 76 项通过、1 项跳过。Python 3.12 架构检查以 `95f69dd7` 为本地基线通过，
-  1162 个源文件、10 个 crate；`git diff --check` 通过。本次仅修改构建配置、合同测试
-  和使用文档，未提交、推送或触发 GitHub Actions，未生成真实便携 ZIP。
-- 2026-10-27 19:11：Windows 执行 `cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked`
-  通过；启用 `gpui-test-support` 的 `pane_groups` 阶段测试 12 项通过，目录身份、复制、
-  恢复、Pane 头部及跨窗相关回归 23 项通过（其中 1 项与阶段测试重叠）。实际验证当前
-  源码中的 cwd 订阅、关闭后的旧事件、混合项目复制、拆 Tab、停靠及移窗路径，未把
-  已安装旧版 Runtime 当作 S2 验证。`cargo test -p nebula --test file_line_budget --locked`
-  编译产品二进制并通过 2 项行数测试；设置测试 103 项通过，国际化合同 24 项通过、
-  1 项忽略，架构规则测试 52 项通过、3 项跳过。Python 3.12 架构检查以 `f03461ba`
-  为本地基线，1162 个源文件、10 个 crate 通过。新增 Rust 模块格式、64 个本地文档链接、
-  阶段状态和 `git diff --check` 通过。全仓 `cargo fmt --all -- --check` 仍因 1017 个
-  既有源码文件的 CRLF 换行失败，未格式化无关文件。编译存在既有警告与 ConPTY
-  辅助文件部署提示；本次未打包发布，也未验收 S3 侧栏视觉。
 
 ## 当前迁移快照（2026-08-14）
 

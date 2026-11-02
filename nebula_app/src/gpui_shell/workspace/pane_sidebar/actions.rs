@@ -80,7 +80,7 @@ impl NebulaWorkspace {
         })
     }
 
-    pub(super) fn activate_sidebar_document(
+    pub(in crate::gpui_shell::workspace) fn activate_sidebar_document(
         &mut self,
         id: &crate::runtime_api::tabs::TabId,
         window: &mut Window,

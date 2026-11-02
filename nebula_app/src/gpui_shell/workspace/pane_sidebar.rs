@@ -41,13 +41,17 @@ pub(super) enum Row {
 
 impl NebulaWorkspace {
     pub(super) fn sidebar_rows(&self) -> Vec<Row> {
+        self.sidebar_rows_with_collapsed(false)
+    }
+
+    pub(super) fn sidebar_rows_with_collapsed(&self, include_collapsed: bool) -> Vec<Row> {
         let mut rows = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for group in self.pane_groups.ordered_groups() {
             rows.push(Row::Project(group.directory.clone()));
             for &id in &group.panes {
                 seen.insert(id);
-                if !group.collapsed {
+                if include_collapsed || !group.collapsed {
                     rows.push(Row::Pane(id));
                 }
             }

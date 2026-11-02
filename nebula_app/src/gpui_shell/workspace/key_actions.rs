@@ -71,6 +71,44 @@ impl NebulaWorkspace {
             self.focus_active(window, cx);
             return;
         }
+        if cfg!(windows) {
+            // The Windows sidebar displays panes in project order, which can
+            // differ from both tab creation order and the focused split pane.
+            let rows: Vec<_> = self
+                .sidebar_rows_with_collapsed(true)
+                .into_iter()
+                .filter(|row| !matches!(row, super::pane_sidebar::Row::Project(_)))
+                .collect();
+            if !rows.is_empty() {
+                let current = if self.settings_open {
+                    None
+                } else if let Some(id) = self.active_terminal_pane_id() {
+                    Some(super::pane_sidebar::Row::Pane(id))
+                } else {
+                    self.tab_meta
+                        .get(self.active)
+                        .map(|meta| super::pane_sidebar::Row::Tab(meta.runtime_id.clone()))
+                };
+                let target =
+                    current.as_ref().and_then(|row| rows.iter().position(|item| item == row));
+                let index = match target {
+                    Some(index) if next => (index + 1) % rows.len(),
+                    Some(index) => (index + rows.len() - 1) % rows.len(),
+                    None if next => 0,
+                    None => rows.len() - 1,
+                };
+                match &rows[index] {
+                    super::pane_sidebar::Row::Pane(id) => {
+                        self.activate_sidebar_pane(*id, window, cx)
+                    },
+                    super::pane_sidebar::Row::Tab(id) => {
+                        self.activate_sidebar_document(id, window, cx)
+                    },
+                    super::pane_sidebar::Row::Project(_) => unreachable!(),
+                }
+            }
+            return;
+        }
         let len = self.tabs.len();
         if len == 0 {
             return;
