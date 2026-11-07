@@ -35,21 +35,42 @@ fn screen(status: AgentStatus) -> Option<Detection> {
 
 #[test]
 fn complete_hooks_own_every_state_even_when_screen_disagrees() {
-    for provider in ["claude", "opencode"] {
+    for (provider, outcome, completed) in [
+        ("claude", None, AgentStatus::Done),
+        ("opencode", None, AgentStatus::Idle),
+        ("opencode", Some("succeeded"), AgentStatus::Done),
+        ("opencode", Some("failed"), AgentStatus::Idle),
+        ("opencode", Some("cancelled"), AgentStatus::Idle),
+    ] {
         let mut activity = AgentActivity::default();
         for (name, status) in [
             ("SessionStart", AgentStatus::Idle),
             ("UserPromptSubmit", AgentStatus::Working),
             ("PermissionRequest", AgentStatus::Blocked),
             ("PostToolUse", AgentStatus::Working),
-            ("Stop", AgentStatus::Done),
+            ("Stop", completed),
         ] {
-            assert!(activity.apply_hook(&event(provider, "primary", name)));
+            let event = if name == "Stop"
+                && let Some(outcome) = outcome
+            {
+                let payload = serde_json::json!({
+                    "kind": "done", "session_id": "primary", "outcome": outcome,
+                });
+                let wire = format!("nebula-hook/1 source={provider}\n{payload}");
+                parse_remote_envelope(wire.as_bytes(), Some(1)).unwrap()
+            } else {
+                event(provider, "primary", name)
+            };
+            assert!(activity.apply_hook(&event));
             for candidate in [AgentStatus::Idle, AgentStatus::Blocked, AgentStatus::Working] {
                 for _ in 0..6 {
                     assert!(!activity.observe_screen(screen(candidate)));
                 }
-                assert_eq!(activity.status(), status, "{provider}/{name}/{candidate:?}");
+                assert_eq!(
+                    activity.status(),
+                    status,
+                    "{provider}/{outcome:?}/{name}/{candidate:?}"
+                );
                 assert_eq!(activity.source(), AgentStatusSource::Hook);
             }
             for _ in 0..6 {

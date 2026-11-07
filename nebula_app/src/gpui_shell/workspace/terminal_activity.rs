@@ -340,7 +340,12 @@ mod tests {
     }
 
     fn click_tabs_toggle(cx: &mut VisualTestContext) {
-        let position = cx.debug_bounds("sidebar-tabs-toggle").unwrap().center();
+        let bounds = cx.debug_bounds("sidebar-tabs-toggle").unwrap();
+        let position = if cfg!(windows) {
+            point(bounds.left() + px(16.0), bounds.center().y)
+        } else {
+            bounds.center()
+        };
         cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::default());
         cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::default());
         draw(cx);
@@ -374,16 +379,29 @@ mod tests {
     fn sidebar_spinner_follows_real_collapse_and_window_focus(cx: &mut TestAppContext) {
         let (workspace, _terminals, _receivers, mut window) = open_painted_workspace(&[1], cx);
         assert_spinner_running(&workspace, &mut window);
-        let row = window.debug_bounds("sidebar-tab-0").unwrap();
+        let selector = workspace.read_with(&window, |workspace, _| {
+            if cfg!(windows) {
+                format!("sidebar-pane-{}", workspace.active_terminal_pane_id().unwrap())
+            } else {
+                "sidebar-tab-0".to_owned()
+            }
+        });
+        let row = window.update(|window, _| window.debug_bounds_for_selector(&selector)).unwrap();
         window.simulate_mouse_move(row.center(), None, Modifiers::default());
         draw(&mut window);
-        assert_spinner_stopped(&workspace, &mut window);
+        if cfg!(windows) {
+            // Pane status and close controls have separate slots, including on hover.
+            assert_spinner_running(&workspace, &mut window);
+        } else {
+            assert_spinner_stopped(&workspace, &mut window);
+        }
         window.simulate_mouse_move(point(px(800.0), px(600.0)), None, Modifiers::default());
         draw(&mut window);
         assert_spinner_running(&workspace, &mut window);
 
         click_tabs_toggle(&mut window);
         assert!(workspace.read_with(&window, |workspace, _| workspace.tabs_section_collapsed));
+        assert!(window.update(|window, _| window.debug_bounds_for_selector(&selector)).is_none());
         assert_spinner_stopped(&workspace, &mut window);
         click_tabs_toggle(&mut window);
         assert!(!workspace.read_with(&window, |workspace, _| workspace.tabs_section_collapsed));

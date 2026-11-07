@@ -65,12 +65,12 @@ fn click_tab(selector: &'static str, cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
-fn tab_bounds(selector: &'static str, cx: &mut VisualTestContext) -> gpui::Bounds<gpui::Pixels> {
+fn tab_bounds(selector: &str, cx: &mut VisualTestContext) -> gpui::Bounds<gpui::Pixels> {
     cx.update(|window, cx| {
         window.refresh();
         window.draw(cx).clear(cx);
     });
-    cx.debug_bounds(selector).expect("visible tab bounds")
+    cx.update(|window, _| window.debug_bounds_for_selector(selector)).expect("visible tab bounds")
 }
 
 fn numbered_tab_shortcuts() -> [&'static str; 2] {
@@ -204,32 +204,82 @@ fn closing_last_regular_tab_keeps_settings_until_it_is_closed(cx: &mut TestAppCo
 fn density_changes_real_tab_bounds_and_sidebar_drag_pitch(cx: &mut TestAppContext) {
     use nebula_settings::{DensityName, TabsPositionName};
 
-    let (_directory, workspace, mut cx) = open_workspace(8, cx);
-    click_tab("top-tab-0", &mut cx);
     for position in [TabsPositionName::Sidebar, TabsPositionName::Top] {
+        let pane_sidebar = cfg!(windows) && position == TabsPositionName::Sidebar;
+        let (_directory, workspace, mut window) =
+            open_workspace(if pane_sidebar { 0 } else { 8 }, cx);
+        let pane_ids = if pane_sidebar {
+            window.update(|window, cx| {
+                cx.set_reduce_motion(true);
+                workspace.update(cx, |workspace, cx| {
+                    workspace.leave_settings(window, cx);
+                    workspace.tabs_position = TabsPositionName::Sidebar;
+                    workspace.sidebar_width = 280.0;
+                    workspace.sidebar_collapsed = false;
+                    workspace.tabs_section_collapsed = false;
+                    (0..2)
+                        .map(|_| {
+                            workspace.add_terminal_for_project(
+                                crate::session::LaunchSession::Shell {
+                                    name: "fixture".into(),
+                                    program: "pebrel-test-missing-shell-executable".into(),
+                                    args: vec![],
+                                },
+                                None,
+                                None,
+                                None,
+                                window,
+                                cx,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+        } else {
+            click_tab("top-tab-0", &mut window);
+            Vec::new()
+        };
         for (density, height, gap, title_height) in [
             (DensityName::Standard, 34.0, 8.0, 48.0),
             (DensityName::Compact, 32.0, 4.0, 48.0),
             (DensityName::Standard, 34.0, 8.0, 48.0),
         ] {
-            workspace.update(&mut cx, |workspace, cx| {
+            workspace.update(&mut window, |workspace, cx| {
+                // Every padding click must change selection, including repeated densities.
+                workspace.active = 0;
                 workspace.tabs_position = position;
                 workspace.density = density;
                 workspace.sync_settings_layout(tab_reveal_instant(cx));
                 workspace.reveal_active_tab();
                 cx.notify();
             });
-            cx.run_until_parked();
+            window.run_until_parked();
             let sidebar = position == TabsPositionName::Sidebar;
-            let first = tab_bounds(if sidebar { "sidebar-tab-0" } else { "top-tab-0" }, &mut cx);
-            let second = tab_bounds(if sidebar { "sidebar-tab-1" } else { "top-tab-1" }, &mut cx);
+            let first_selector = if pane_sidebar {
+                format!("sidebar-pane-{}", pane_ids[0])
+            } else if sidebar {
+                "sidebar-tab-0".into()
+            } else {
+                "top-tab-0".into()
+            };
+            let second_selector = if pane_sidebar {
+                format!("sidebar-pane-{}", pane_ids[1])
+            } else if sidebar {
+                "sidebar-tab-1".into()
+            } else {
+                "top-tab-1".into()
+            };
+            let first = tab_bounds(&first_selector, &mut window);
+            let second = tab_bounds(&second_selector, &mut window);
+            // Two-line Pane rows retain their layout across density changes.
+            let (height, gap) = if pane_sidebar { (74.0, 3.0) } else { (height, gap) };
             assert_eq!(f32::from(first.size.height), height);
             assert_eq!(f32::from(second.size.height), height);
             if sidebar {
                 assert_eq!(f32::from(second.top() - first.top()), height + gap);
             }
-            let native = cx.update(|window, _| crate::platform::window_chrome::layout(window));
-            let title = tab_bounds("workspace-titlebar", &mut cx);
+            let native = window.update(|window, _| crate::platform::window_chrome::layout(window));
+            let title = tab_bounds("workspace-titlebar", &mut window);
             assert_eq!(
                 f32::from(title.size.height),
                 native.map_or(title_height, |layout| layout.0)
@@ -237,14 +287,56 @@ fn density_changes_real_tab_bounds_and_sidebar_drag_pitch(cx: &mut TestAppContex
 
             // Padding belongs to the tab's actual click target in either density.
             let point = gpui::point(second.left() + px(8.0), second.bottom() - px(2.0));
-            cx.simulate_click(point, Modifiers::default());
-            workspace.read_with(&cx, |workspace, _| assert_eq!(workspace.active, 1));
-            if sidebar {
-                cx.simulate_mouse_down(point, gpui::MouseButton::Left, Modifiers::default());
-                workspace.read_with(&cx, |workspace, _| {
+            window.simulate_click(point, Modifiers::default());
+            workspace.read_with(&window, |workspace, _| assert_eq!(workspace.active, 1));
+            if pane_sidebar {
+                let grip = tab_bounds(&format!("sidebar-tab-grip-{}", pane_ids[1]), &mut window);
+                assert!(second.contains(&grip.center()));
+                workspace.read_with(&window, |workspace, _| {
+                    assert_eq!(workspace.tab_of_pane(pane_ids[1]), Some(1));
+                    assert_eq!(workspace.sidebar_drop_target(first.center()), Some(pane_ids[0]));
+                });
+                window.simulate_mouse_move(grip.center(), None, Modifiers::default());
+                window.simulate_mouse_down(
+                    grip.center(),
+                    gpui::MouseButton::Left,
+                    Modifiers::default(),
+                );
+                workspace.read_with(&window, |workspace, _| {
+                    assert!(
+                        workspace.tab_drag.is_some(),
+                        "grip press must arm the drag: {density:?}"
+                    );
+                });
+                window.simulate_mouse_move(
+                    gpui::point(grip.center().x + px(10.0), grip.center().y + px(10.0)),
+                    Some(gpui::MouseButton::Left),
+                    Modifiers::default(),
+                );
+                window.simulate_mouse_move(
+                    first.center(),
+                    Some(gpui::MouseButton::Left),
+                    Modifiers::default(),
+                );
+                window.simulate_mouse_up(
+                    first.center(),
+                    gpui::MouseButton::Left,
+                    Modifiers::default(),
+                );
+                workspace.read_with(&window, |workspace, _| {
+                    assert!(workspace.tab_drag.is_none());
+                    assert_eq!(workspace.tab_of_pane(pane_ids[1]), Some(0));
+                });
+                // Restore fixture order before checking the next density.
+                window.update(|window, cx| {
+                    workspace.update(cx, |workspace, cx| workspace.move_tab(0, 1, window, cx))
+                });
+            } else if sidebar {
+                window.simulate_mouse_down(point, gpui::MouseButton::Left, Modifiers::default());
+                workspace.read_with(&window, |workspace, _| {
                     assert_eq!(workspace.tab_drag.as_ref().unwrap().pitch, height + gap);
                 });
-                cx.simulate_mouse_up(point, gpui::MouseButton::Left, Modifiers::default());
+                window.simulate_mouse_up(point, gpui::MouseButton::Left, Modifiers::default());
             }
         }
     }
