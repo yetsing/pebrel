@@ -19,4 +19,5 @@
 - 设置、持久化和语言注册：遵循 [`nebula_settings/AGENTS.md`](nebula_settings/AGENTS.md)。
 - 检查器、门禁和治理脚本：遵循 [`scripts/AGENTS.md`](scripts/AGENTS.md)。
 - 文档事实与操作手册：遵循 [`docs/AGENTS.md`](docs/AGENTS.md)。
+- 同步上游已发布提交：按 [`发布同步验证手册`](docs/upstream-release-validation.md) 固定 Release 标签、执行隔离回归并记录未覆盖范围。
 - 版本号、构建、打包、自动更新、GitHub Release、Changelog 或 Release Note：先完整阅读 [`packaging/AGENTS.md`](packaging/AGENTS.md)、[`docs/release-notes/AGENTS.md`](docs/release-notes/AGENTS.md) 和本地 `.agents/memory.md` 的发布章节。

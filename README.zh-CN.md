@@ -271,6 +271,8 @@ cargo build --release --locked -p nebula --bin pebrel --features gpui-shell
 
 通过 GitHub Actions 构建 Windows 分支便携包，见 [便携 ZIP 构建指南](docs/windows-portable-build.md)。
 
+将上游正式发布同步到本地分支并执行隔离检查，见 [发布同步与自动验证手册](docs/upstream-release-validation.md)。
+
 ## 联系方式
 
 Discord：[discord.gg/VFn4rcxmhn](https://discord.gg/VFn4rcxmhn)

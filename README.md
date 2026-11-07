@@ -313,6 +313,8 @@ through the explicit `legacy-shell` feature.
 
 For Windows branch artifacts from GitHub Actions, see the [portable ZIP build guide](docs/windows-portable-build.md).
 
+For synchronizing a local branch with an upstream stable release, see the [release synchronization and validation guide](docs/upstream-release-validation.md) (Chinese).
+
 ## Contact
 
 Discord: [discord.gg/VFn4rcxmhn](https://discord.gg/VFn4rcxmhn)

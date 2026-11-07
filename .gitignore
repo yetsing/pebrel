@@ -32,6 +32,7 @@ assets/windows/conhost/
 !/docs/runtime-api-v1.schema.json
 !/docs/preview-release-checklist.md
 !/docs/windows-portable-build.md
+!/docs/upstream-release-validation.md
 !/docs/project-constraints.md
 !/docs/architecture.md
 !/docs/architecture-decisions.md
