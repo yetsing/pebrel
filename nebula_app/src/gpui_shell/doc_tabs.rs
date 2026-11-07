@@ -1,18 +1,21 @@
 //! Image tab rendering, plus the shared editable Markdown tab entry point.
 //! Image zoom/pan continues to use the existing tested ImageView geometry.
 
+mod image_source;
+
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::ssh_sftp::document::{DocumentOperation, RemoteLocation};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    Bounds, ContentMask, Context, Corners, InteractiveElement as _, IntoElement, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Render, RenderImage,
-    ScrollWheelEvent, Styled as _, Window, div, px,
+    App, Bounds, ContentMask, Context, Corners, FocusHandle, Focusable, InteractiveElement as _,
+    IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement as _,
+    Pixels, Render, RenderImage, ScrollWheelEvent, Styled as _, Task, Window, div, px,
 };
-use image::Frame;
+use image_source::ImageSource;
 
 use crate::display::image_viewer::ImageView;
 use crate::gpui_shell::prelude::*;
@@ -29,6 +32,16 @@ pub fn openable_in_app(path: &Path) -> bool {
 pub struct ImageTabView {
     pub path: PathBuf,
     pub title: String,
+    source: ImageSource,
+    encoded: Option<Arc<[u8]>>,
+    operation: Option<DocumentOperation>,
+    generation: u64,
+    loading: bool,
+    load_received: u64,
+    load_total: Option<u64>,
+    load_task: Option<Task<()>>,
+    progress_task: Option<Task<()>>,
+    focus: FocusHandle,
     /// 共享几何状态机（zoom/pan/锚点/钳制）。
     geometry: ImageView,
     /// 后台解码的像素（BGRA 帧）；None = 解码中或失败。
@@ -41,11 +54,35 @@ pub struct ImageTabView {
 
 impl ImageTabView {
     pub fn new(path: PathBuf, cx: &mut Context<Self>) -> Self {
-        let geometry = ImageView::open(path.clone());
-        let title = geometry.title.clone();
+        Self::new_with_source(ImageSource::Local(path), cx)
+    }
+
+    pub(crate) fn new_remote(location: RemoteLocation, cx: &mut Context<Self>) -> Self {
+        Self::new_with_source(ImageSource::Remote(location), cx)
+    }
+
+    fn new_with_source(source: ImageSource, cx: &mut Context<Self>) -> Self {
+        let path = source.path().to_owned();
+        let geometry = ImageView::pending(path.clone());
+        let title = match &source {
+            ImageSource::Local(_) => geometry.title.clone(),
+            ImageSource::Remote(location) => {
+                format!("{} · {}", geometry.title, location.destination)
+            },
+        };
         let mut this = Self {
             path,
             title,
+            source,
+            encoded: None,
+            operation: None,
+            generation: 0,
+            loading: false,
+            load_received: 0,
+            load_total: None,
+            load_task: None,
+            progress_task: None,
+            focus: cx.focus_handle(),
             geometry,
             image: None,
             error: None,
@@ -55,33 +92,11 @@ impl ImageTabView {
         this
     }
 
-    /// 重新读盘（文件树再次双击同一路径时宿主调用，旧壳 reload 同义）。
+    /// Reopening a tab reuses its source and preserves zoom/pan.
     pub fn reload(&mut self, cx: &mut Context<Self>) {
-        self.geometry.reload();
-        self.image = None;
-        self.error = None;
-        self.spawn_decode(cx);
-    }
-
-    fn spawn_decode(&mut self, cx: &mut Context<Self>) {
-        let path = self.path.clone();
-        let task = cx.background_executor().spawn(async move { decode_bgra(&path) });
-        cx.spawn(async move |this, cx| {
-            let decoded = task.await;
-            let _ = this.update(cx, |view, cx| {
-                match decoded {
-                    Ok(image) => {
-                        let size = image.size(0);
-                        view.geometry
-                            .set_decoded_dimensions((size.width.into(), size.height.into()));
-                        view.image = Some(image);
-                    },
-                    Err(error) => view.error = Some(error),
-                }
-                cx.notify();
-            });
-        })
-        .detach();
+        if !self.loading {
+            self.spawn_decode(cx);
+        }
     }
 
     #[cfg(all(test, feature = "gpui-test-support"))]
@@ -107,7 +122,13 @@ impl ImageTabView {
         }
     }
 
-    fn on_mouse_down(&mut self, event: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus.focus(window, cx);
         let point = (f32::from(event.position.x), f32::from(event.position.y));
         if self.geometry.begin_drag(point, self.area_tuple()) {
             cx.notify();
@@ -135,17 +156,10 @@ impl ImageTabView {
     }
 }
 
-/// 与壁纸解码同款：RGBA8 → BGRA（gpui 帧通道序）。跑在后台线程。
-fn decode_bgra(path: &Path) -> Result<Arc<RenderImage>, (Message, String)> {
-    let bytes =
-        std::fs::read(path).map_err(|error| (Message::ImageReadFailed, error.to_string()))?;
-    let mut rgba = image::load_from_memory(&bytes)
-        .map_err(|error| (Message::ImageDecodeFailed, error.to_string()))?
-        .into_rgba8();
-    for pixel in rgba.chunks_exact_mut(4) {
-        pixel.swap(0, 2);
+impl Focusable for ImageTabView {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
     }
-    Ok(Arc::new(RenderImage::new([Frame::new(rgba)])))
 }
 
 impl Render for ImageTabView {
@@ -189,20 +203,20 @@ impl Render for ImageTabView {
         .absolute()
         .inset_0();
 
-        let status: Option<String> =
-            if let Some((message, error)) = &self.error {
-                Some(language.format(
-                    *message,
-                    &[("path", &self.path.display().to_string()), ("error", error)],
-                ))
-            } else if self.image.is_none() {
-                Some(language.text(Message::ImageLoading).to_owned())
-            } else {
-                None
-            };
+        let cancelling = self.operation.as_ref().is_some_and(DocumentOperation::is_cancelled);
+        let status = if cancelling {
+            Some(language.text(Message::TransferCancelling).to_owned())
+        } else if let Some((message, error)) = &self.error {
+            Some(language.format(*message, &[("path", &self.source.display()), ("error", error)]))
+        } else if self.loading {
+            Some(super::widgets::file_read_progress(language, self.load_received, self.load_total))
+        } else {
+            None
+        };
 
         div()
             .id("nebula-image-tab")
+            .track_focus(&self.focus)
             .size_full()
             .relative()
             .overflow_hidden()
@@ -213,16 +227,43 @@ impl Render for ImageTabView {
             .child(painter)
             .when_some(status, |root, text| {
                 root.child(
-                    div()
+                    h_flex()
                         .absolute()
                         .top_2()
                         .left_2()
+                        .right_2()
+                        .gap_2()
                         .px_2()
                         .py_1()
                         .rounded_md()
+                        .bg(cx.theme().background)
                         .text_sm()
                         .text_color(muted)
-                        .child(text),
+                        .child(div().flex_1().min_w_0().child(text))
+                        .when(self.loading, |bar| {
+                            bar.child(
+                                Button::new("image-cancel")
+                                    .ghost()
+                                    .xsmall()
+                                    .label(language.text(Message::TransferCancel))
+                                    .disabled(cancelling)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        if let Some(operation) = &this.operation {
+                                            operation.cancel();
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                        })
+                        .when(!self.loading, |bar| {
+                            bar.child(
+                                Button::new("image-retry")
+                                    .ghost()
+                                    .xsmall()
+                                    .label(language.text(Message::EditorReload))
+                                    .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+                            )
+                        }),
                 )
             })
     }

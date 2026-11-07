@@ -4863,6 +4863,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "luau0-src"
+version = "0.18.3+luau709"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e73f7d752fe2ef0a41f132b83d0be154c6ae0ed84967b4df80a16901866be075"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "lyon"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5186,6 +5195,7 @@ dependencies = [
  "libc",
  "lua-src",
  "luajit-src",
+ "luau0-src",
  "pkg-config",
 ]
 
@@ -5249,6 +5259,7 @@ dependencies = [
  "log",
  "num-traits",
  "once_cell",
+ "pp-rs",
  "rustc-hash 1.1.0",
  "spirv",
  "thiserror 2.0.18",
@@ -5287,7 +5298,7 @@ dependencies = [
 
 [[package]]
 name = "nebula"
-version = "2.3.1"
+version = "2.4.0"
 dependencies = [
  "ab_glyph_rasterizer",
  "aes-gcm",
@@ -5371,6 +5382,7 @@ dependencies = [
  "toml_edit 0.24.0+spec-1.1.0",
  "tray-icon",
  "ttf-parser",
+ "unicode-segmentation",
  "unicode-width",
  "ureq",
  "windows 0.61.3",
@@ -5401,15 +5413,15 @@ dependencies = [
 
 [[package]]
 name = "nebula-settings"
-version = "2.3.1"
+version = "2.4.0"
 
 [[package]]
 name = "nebula-split"
-version = "2.3.1"
+version = "2.4.0"
 
 [[package]]
 name = "nebula_config"
-version = "2.3.1"
+version = "2.4.0"
 dependencies = [
  "log",
  "nebula_config_derive",
@@ -5419,7 +5431,7 @@ dependencies = [
 
 [[package]]
 name = "nebula_config_derive"
-version = "2.3.1"
+version = "2.4.0"
 dependencies = [
  "log",
  "nebula_config",
@@ -5436,7 +5448,7 @@ version = "0.6.0"
 
 [[package]]
 name = "nebula_terminal"
-version = "2.3.1"
+version = "2.4.0"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.0",
@@ -6507,7 +6519,7 @@ dependencies = [
 
 [[package]]
 name = "pebrel-completions"
-version = "2.3.1"
+version = "2.4.0"
 dependencies = [
  "lscolors",
  "nu-ansi-term",
@@ -6900,6 +6912,15 @@ name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+
+[[package]]
+name = "pp-rs"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb458bb7f6e250e6eb79d5026badc10a3ebb8f9a15d1fff0f13d17c71f4d6dee"
+dependencies = [
+ "unicode-xid",
+]
 
 [[package]]
 name = "ppv-lite86"
@@ -11829,7 +11850,7 @@ checksum = "2fb433233f2df9344722454bc7e96465c9d03bff9d77c248f9e7523fe79585b5"
 [[package]]
 name = "xim-ctext"
 version = "0.3.0"
-source = "git+https://github.com/zed-industries/xim-rs.git?rev=16f35a2c881b815a2b6cdfd6687988e84f8447d8#16f35a2c881b815a2b6cdfd6687988e84f8447d8"
+source = "git+https://github.com/MeshedPoto/xim-rs?rev=422473ff3be2ce58ea70f3fad35cecafcf7ae6a9#422473ff3be2ce58ea70f3fad35cecafcf7ae6a9"
 dependencies = [
  "encoding_rs",
 ]
@@ -11837,7 +11858,7 @@ dependencies = [
 [[package]]
 name = "xim-parser"
 version = "0.2.1"
-source = "git+https://github.com/zed-industries/xim-rs.git?rev=16f35a2c881b815a2b6cdfd6687988e84f8447d8#16f35a2c881b815a2b6cdfd6687988e84f8447d8"
+source = "git+https://github.com/MeshedPoto/xim-rs?rev=422473ff3be2ce58ea70f3fad35cecafcf7ae6a9#422473ff3be2ce58ea70f3fad35cecafcf7ae6a9"
 dependencies = [
  "bitflags 2.13.0",
 ]
@@ -12167,7 +12188,7 @@ dependencies = [
 [[package]]
 name = "zed-xim"
 version = "0.4.0-zed"
-source = "git+https://github.com/zed-industries/xim-rs.git?rev=16f35a2c881b815a2b6cdfd6687988e84f8447d8#16f35a2c881b815a2b6cdfd6687988e84f8447d8"
+source = "git+https://github.com/MeshedPoto/xim-rs?rev=422473ff3be2ce58ea70f3fad35cecafcf7ae6a9#422473ff3be2ce58ea70f3fad35cecafcf7ae6a9"
 dependencies = [
  "ahash",
  "hashbrown 0.14.5",

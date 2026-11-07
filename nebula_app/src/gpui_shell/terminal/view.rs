@@ -27,8 +27,10 @@ mod path_drop;
 mod pointer;
 mod program_status;
 mod reading;
+mod remote_activity;
 mod runtime;
 mod session_failure;
+mod shell_pointer;
 mod ssh_reconnect;
 mod startup;
 mod startup_command;
@@ -89,16 +91,6 @@ const SELECTION_SCROLL_STEP: f32 = 20.0;
 /// 「刚成功」的对勾停留多久再沉降为圆点。看门狗按 1Hz 复核，所以实际停留是
 /// 这个值到 +1s；取 1.2s 是为了让它至少跨过一个复核点，不会一闪就没。
 pub(super) const COMPLETION_FLASH: std::time::Duration = std::time::Duration::from_millis(1200);
-
-/// 远端回合停滞对账的阈值：hook 权威在场的回合静默这么久、且屏幕连续两拍是
-/// agent 自家的同一形态，才允许双向对账（见
-/// `ai_hook::lifecycle::AgentActivity::reconcile_stalled_turn`）：两拍 idle
-/// 提示符把回合收敛为结束；两拍转圈把丢了点火事件（UserPromptSubmit/权限
-/// 答复在远端 bridge 丢失）的回合从 Done/Blocked 拉回 Working。这是远端的
-/// 第二重证据——本地有进程树对账，SSH/WSL 没有进程可见性，hook 一旦在远端
-/// bridge 丢失，回合会钉死在丢失前的状态。权限等待屏是 Blocked 检测、不参与
-/// 对账；真正的防线是「稳定的屏幕形态」而非纯计时。
-pub(super) const REMOTE_TURN_STALL: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// 一次自动回滚该滚几行：指针在网格上方为正（往回滚历史）、下方为负，网格
 /// 内为 0。贴边即 1 行，之后每远离 `SELECTION_SCROLL_STEP` 像素加一档。
@@ -393,6 +385,7 @@ pub struct TerminalView {
     last_run: Option<crate::runtime_api::RuntimeRunOutcome>,
     /// Shared lifecycle owns hook authority, session scope and fallback evidence.
     agent_activity: crate::ai_hook::lifecycle::AgentActivity,
+    remote_activity: remote_activity::RemoteActivity,
     program_status: Option<program_status::ProgramStatus>,
     program_status_seen: bool,
     pty_failed: bool,
@@ -408,6 +401,7 @@ pub struct TerminalView {
     pub(super) inline_images: super::inline_image::InlineImageStore,
     image_paste: image_paste::ImagePasteState,
     native_clipboard: native_clipboard::NativeClipboard,
+    shell_pointer: shell_pointer::Pointer,
     path_drop: path_drop::PathDropState,
     /// SSH 直连目的地（`user@host[:port]`）；本地会话为 None。
     pub ssh_destination: Option<String>,
@@ -615,6 +609,7 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) {
         if !visible {
+            self.shell_pointer.invalidate();
             self.clear_output_hover(cx);
         }
         if self.output_visible != visible {
@@ -659,6 +654,7 @@ impl TerminalView {
         }
         match event {
             TermEvent::Wakeup => {
+                self.restore_shell_pointer_selection();
                 self.observe_reading_output(cx);
                 self.flush_pending_runtime_submit(cx);
                 self.flush_pending_shell_command(cx);
@@ -676,6 +672,10 @@ impl TerminalView {
             },
             TermEvent::CursorBlinkingChange => self.restart_cursor_blink(cx),
             TermEvent::Title(title) => {
+                if self.observing_tmux() {
+                    self.sync_remote_activity(cx);
+                    return;
+                }
                 // `NEBULA|cwd|branch|program` 标题协议（与旧壳 event.rs 的
                 // 解析同构）：shell 集成把 cwd/分支塞在标题里喂玻璃 powerline
                 // 与 tab 标签，而不是真拿来当窗口标题。
@@ -692,12 +692,17 @@ impl TerminalView {
                     // 协议串不是窗口标题，更不是 tab 名。
                 } else {
                     self.title = title;
+                    self.observe_agent_title(std::time::Instant::now(), cx);
                 }
                 cx.emit(TerminalViewEvent::TitleChanged);
                 cx.notify();
             },
             TermEvent::ResetTitle => {
+                if self.observing_tmux() {
+                    return;
+                }
                 self.title = String::from("shell");
+                self.observe_agent_title(std::time::Instant::now(), cx);
                 cx.emit(TerminalViewEvent::TitleChanged);
                 cx.notify();
             },
@@ -792,8 +797,17 @@ impl TerminalView {
                     Err(error) => log::warn!("terminal image dropped: {error}"),
                 }
             },
+            // APC graphics: pixels arrive raw, already placed in the grid, so
+            // decoding is the only work left — and it happens off the UI thread.
+            TermEvent::KittyImage { data, channels, placement } => {
+                match self.inline_images.enqueue_pixels(data, channels, placement) {
+                    Ok(()) => self.drive_inline_image_decode(cx),
+                    Err(error) => log::warn!("APC image dropped: {error}"),
+                }
+            },
             TermEvent::CommandStart => {
                 self.native_clipboard.clear();
+                self.shell_pointer.revoke();
                 self.on_command_start(cx);
             },
             // 退出码接到「上一条命令失败」的未读徽章上（⚠ 三角）；`Some(0)` 与
@@ -844,6 +858,7 @@ impl TerminalView {
                 }
                 self.suggest.completion_shell_report(&name, &value);
                 self.native_clipboard.observe(&name, &value);
+                self.observe_shell_pointer(&name, &value, cx);
                 self.handle_completion_editor_report(&name, &value, cx);
                 cx.notify();
             },
@@ -869,6 +884,7 @@ impl TerminalView {
 
     /// `Exited` 只对宿主发一次；重复的退出信号（ChildExit 之后必然跟 Exit）只更新文案。
     fn mark_exited(&mut self, message: String, cx: &mut Context<Self>) {
+        self.shell_pointer.revoke();
         self.clear_output_hover(cx);
         self.reading.cancel_query();
         self.reading.cancel_copy();
@@ -908,9 +924,22 @@ impl TerminalView {
 
     /// 输入后回到底部并请求重绘。
     fn write_input(&mut self, bytes: Vec<u8>, cx: &mut Context<Self>) {
+        let preserves_prompt = super::event_mailbox::preserves_native_prompt(&bytes)
+            || self.shell_pointer_preserves_native_undo(&bytes);
+        self.write_editor_input(bytes, preserves_prompt, cx);
+    }
+
+    /// Only a verified native-editor operation can override the byte-stream gate.
+    fn write_editor_input(
+        &mut self,
+        bytes: Vec<u8>,
+        preserves_prompt: bool,
+        cx: &mut Context<Self>,
+    ) {
         if self.ssh_failed() {
             return;
         }
+        self.shell_pointer.invalidate();
         self.completion_editor.invalidate();
         self.editor_query_task = None;
         self.cursor_animation.note_input(&bytes);
@@ -927,7 +956,6 @@ impl TerminalView {
                     status_acknowledged = term.acknowledge_program_status_results();
                 }
                 // Match the parser's Term-lock order before attributing queued prompts.
-                let preserves_prompt = super::event_mailbox::preserves_native_prompt(&bytes);
                 session.native_prompt.observe_input(self.prompt_input_epoch, preserves_prompt);
                 if !preserves_prompt {
                     term.nebula_end_prompt();
@@ -1109,6 +1137,7 @@ impl TerminalView {
     /// 热应用运行时设置（设置页改动后由宿主调用）。默认光标样式只更新
     /// `Term` 的 fallback；程序通过 DECSCUSR 设置的临时样式仍保持权威。
     pub fn apply_settings(&mut self, cx: &mut Context<Self>) {
+        self.shell_pointer.invalidate();
         crate::gpui_shell::font_loading::ensure_selected(cx);
         self.cursor_animation.reset();
         self.refresh_ssh_label();
@@ -1402,6 +1431,10 @@ impl TerminalView {
             && !mods.shift
             && self.marked_text.is_none()
             && !mode.intersects(TermMode::ALT_SCREEN | TermMode::VI);
+        if plain && self.delete_shell_pointer_selection(ks.key.as_str(), cx) {
+            cx.stop_propagation();
+            return;
+        }
         if plain && self.handle_completion_key(ks.key.as_str(), cx) {
             cx.notify();
             cx.stop_propagation();

@@ -394,7 +394,6 @@ impl NebulaWorkspace {
                 div().size(px(6.0)).rounded_full().bg(colors.ready).into_any_element()
             },
             SidebarActivity::WaitingInput | SidebarActivity::Attention => Self::waiting_hand(
-                crate::font_install::SYMBOL_FONT_FAMILY.into(),
                 13.0,
                 if activity == SidebarActivity::Attention { theme.warning } else { theme.primary },
             )

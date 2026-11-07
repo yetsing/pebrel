@@ -82,6 +82,7 @@ mod input;
 #[path = "i18n/outcomes.rs"]
 mod localized_status;
 mod logging;
+mod luau;
 #[cfg(target_os = "macos")]
 mod macos;
 mod markdown;
@@ -102,6 +103,7 @@ mod plugins;
 #[cfg(all(unix, feature = "legacy-shell"))]
 mod polling;
 mod process_tree;
+mod prompt_suggestions;
 mod provider_test;
 mod proxy_test;
 mod remote_dirs;
@@ -276,6 +278,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     match options.subcommands {
+        Some(Subcommands::Predict(options)) => {
+            std::process::exit(prompt_suggestions::launcher::run(options))
+        },
         Some(Subcommands::Ctl(options)) => runtime_api::run_cli(options)?,
         // Resource-verb commands are thin aliases over `ctl`, speaking the same
         // serialized protocol (see `runtime_api::shortcuts`).

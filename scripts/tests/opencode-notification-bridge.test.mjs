@@ -177,6 +177,7 @@ test("V2 durable execution events preserve permission context, ordering and comp
   await b.emit("session.execution.succeeded", { sessionID: "main" });
   await b.emit("session.execution.succeeded", { sessionID: "main" });
   assert.deepEqual(b.sent.map(e => e.kind), ["session-start", "prompt", "attention", "tool-complete", "done"]);
+  assert.equal(b.sent.at(-1).outcome, "succeeded");
   const attention = b.sent[2];
   assert.deepEqual(attention.context, request);
   assert.equal(attention.permission_or_tool, "bash");
@@ -225,6 +226,24 @@ test("V2 interleaved sessions and repeated starts do not lose either completion"
   assert.deepEqual(b.sent.filter(e => e.kind === "done").map(e => e.session_id), ["child", "main"]);
 });
 
+test("V2 permission replies resume only an active turn", async (t) => {
+  const b = await v2();
+  t.after(b.cleanup);
+  for (const type of ["permission.replied", "question.replied", "question.rejected"]) {
+    await b.emit(type, { sessionID: "main" });
+  }
+  assert.deepEqual(b.sent, []);
+  await b.emit("session.execution.started", { sessionID: "main" });
+  for (const type of ["permission.replied", "question.replied", "question.rejected"]) {
+    await b.emit(type, { sessionID: "main" });
+  }
+  assert.deepEqual(b.sent.map(e => e.kind), ["session-start", "prompt", "tool-complete", "tool-complete", "tool-complete"]);
+  await b.emit("session.execution.succeeded", { sessionID: "main" });
+  const count = b.sent.length;
+  await b.emit("permission.replied", { sessionID: "main" });
+  assert.equal(b.sent.length, count);
+});
+
 for (const terminal of ["failed", "interrupted"]) {
   test(`V2 ${terminal} executions stop the spinner, and deletion ends the session`, async (t) => {
     const b = await v2();
@@ -234,6 +253,7 @@ for (const terminal of ["failed", "interrupted"]) {
     await b.emit(`session.execution.${terminal}`, { sessionID: "main" });
     await b.emit("session.deleted", { sessionID: "main" });
     assert.deepEqual(b.sent.map(e => e.kind), ["session-start", "prompt", "tool-complete", "done", "session-end"]);
+    assert.equal(b.sent.find(e => e.kind === "done").outcome, terminal === "failed" ? "failed" : "cancelled");
   });
 }
 

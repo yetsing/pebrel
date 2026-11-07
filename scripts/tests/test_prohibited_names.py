@@ -21,6 +21,39 @@ def run_git(repository: Path, *args: str) -> None:
 
 
 class ProhibitedNamesTests(unittest.TestCase):
+    def test_graphics_protocol_names_preserve_the_exact_technical_reference(self) -> None:
+        for text in ("Support the Kitty graphics protocol.", "支持 Kitty 图形协议。"):
+            with self.subTest(text=text):
+                self.assertFalse(check_prohibited_names.prohibited_source_line("CHANGELOG.md", text))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(
+                    "CHANGELOG.md", text + " Compare with Kitty."
+                ))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(
+                    "CHANGELOG.md", text + " https://example.invalid/kitty"
+                ))
+        for text in ("Kitty graphics are beautiful", "Kitty 图像", "Use Kitty instead",
+                     "Kitty graphics protocol_adapter"):
+            self.assertTrue(check_prohibited_names.prohibited_source_line("CHANGELOG.md", text))
+
+    def test_activity_fixtures_preserve_real_process_names_without_exempting_prose(self) -> None:
+        path = "nebula_app/src/gpui_shell/terminal/view/activity_tests.rs"
+        cases = ('view.running_program = Some("tmux".into());',
+                 'for program in ["tmux", "screen"] {')
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertFalse(check_prohibited_names.prohibited_source_line(path, text))
+                self.assertTrue(check_prohibited_names.prohibited_source_line("README.md", text))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(
+                    path.replace("activity_tests", "other_tests"), text
+                ))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(path, text + " // use tmux"))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(
+                    path, text + " // https://example.invalid/tmux"
+                ))
+        for text in ('let label = "tmux";', '// tmux 里的 Agent 经 hook 报告回合',
+                     'hook("inside-tmux", "UserPromptSubmit", 1)', 'println!("tmux");'):
+            self.assertTrue(check_prohibited_names.prohibited_source_line(path, text))
+
     def test_desktop_endpoint_protocol_references_do_not_allow_prose(self) -> None:
         cases = (
             ("resume.rs", 'Self { executable: "tmux".into(), socket: String::new() }'),
@@ -176,6 +209,22 @@ class ProhibitedNamesTests(unittest.TestCase):
         dependency = 'gpui = { git = "https://github.com/ghostty/ghostty", rev = "deadbeef" }'
         self.assertFalse(check_prohibited_names.prohibited_source_line("Cargo.toml", dependency))
         self.assertTrue(check_prohibited_names.prohibited_source_line("README.md", dependency))
+
+    def test_desktop_hook_wire_references_preserve_only_the_exact_interface(self) -> None:
+        cases = (
+            ("nebula_app/res/hooks/remote_bridge.py", 'if os.environ.get("TMUX"):'),
+            ("nebula_app/res/hooks/remote_tmux.py", 'environment = os.environ.get("TMUX", "").rsplit(",", 2)'),
+            ("nebula_app/res/hooks/remote_tmux.py", 'root = Path(__file__).absolute().parent / "tmux-routes"'),
+            ("nebula_app/res/hooks/remote_bridge.py", 'header += " tmux=" + route["context"]'),
+            ("nebula_app/src/ai_hook/protocol.rs", 'let context = field.strip_prefix("tmux=")?;'),
+        )
+        for path, text in cases:
+            with self.subTest(path=path, text=text):
+                self.assertFalse(check_prohibited_names.prohibited_source_line(path, text))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(path, text + ' # compare with Otty'))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(path, text + ' # tmux design'))
+                self.assertTrue(check_prohibited_names.prohibited_source_line("README.md", text))
+                self.assertTrue(check_prohibited_names.prohibited_source_line(path, 'label = "tmux"'))
 
     def test_mobile_build_and_session_references_preserve_their_interfaces(self) -> None:
         cases = (

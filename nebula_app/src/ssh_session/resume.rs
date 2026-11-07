@@ -6,6 +6,8 @@ use super::{SharedSession, SshEventHost, exec};
 
 mod identity;
 pub(super) use identity::{IdentityInput, PtyIdentity};
+mod activity;
+pub use activity::TmuxActivity;
 
 const BUDGET: Duration = Duration::from_secs(3);
 const POLL: Duration = Duration::from_secs(2);
@@ -124,8 +126,16 @@ fn posix(script: &str) -> String {
     format!("sh -c {}", quote(script))
 }
 
+pub(super) const PROBE_REPLY: &str = "PEBREL_POSIX_2:'\"$\\ spaced";
+
+pub(super) fn probe_command() -> String {
+    // Finding sh does not establish how the SSH server's outer shell passes
+    // nested quotes. Exercise the same quoting and expansion as startup.
+    posix(&format!("pebrel_probe={}; printf '%s' \"$pebrel_probe\"", quote(PROBE_REPLY)))
+}
+
 pub(super) async fn supported(session: &SharedSession) -> bool {
-    query(session, "sh -c 'printf PEBREL_POSIX_1'").await.as_deref() == Some("PEBREL_POSIX_1")
+    query(session, &probe_command()).await.as_deref() == Some(PROBE_REPLY)
 }
 
 pub(super) fn startup(
@@ -204,6 +214,8 @@ pub(super) async fn monitor<H: SshEventHost>(
     session: &SharedSession,
     identity: Arc<Mutex<Option<PtyIdentity>>>,
     initial: Option<&ResumeTarget>,
+    tmux_helper: Option<&str>,
+    token: &str,
     events: &H,
 ) -> std::convert::Infallible {
     let mut endpoint = initial.map(|target| target.endpoint.clone()).unwrap_or_default();
@@ -216,7 +228,17 @@ pub(super) async fn monitor<H: SshEventHost>(
             if let Some(target) = &target {
                 endpoint = target.endpoint.clone();
             }
-            events.ssh_resume_target(target);
+            events.ssh_resume_target(target.clone());
+            match (target.as_ref(), tmux_helper) {
+                (Some(target), Some(helper)) => {
+                    if let Some(activity) =
+                        activity::observe(session, &identity, target, helper, token).await
+                    {
+                        events.ssh_tmux_activity(Some(activity));
+                    }
+                },
+                _ => events.ssh_tmux_activity(None),
+            }
         }
         tokio::time::sleep(POLL).await;
     }

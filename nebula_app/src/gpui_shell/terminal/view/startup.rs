@@ -266,6 +266,9 @@ impl TerminalView {
         let cursor_blink_subscriptions = [
             cx.observe_window_activation(window, |view, window, cx| {
                 let active = window.is_window_active();
+                if !active {
+                    view.shell_pointer.invalidate();
+                }
                 if view.cursor_window_active != active {
                     view.cursor_window_active = active;
                     view.restart_cursor_blink(cx);
@@ -278,6 +281,7 @@ impl TerminalView {
                 }
             }),
             cx.on_focus_out(&focus_handle, window, |view, _event, _window, cx| {
+                view.shell_pointer.invalidate();
                 view.path_drop.invalidate();
                 if view.cursor_pane_focused {
                     view.cursor_pane_focused = false;
@@ -339,6 +343,7 @@ impl TerminalView {
             active_run: None,
             last_run: None,
             agent_activity: Default::default(),
+            remote_activity: Default::default(),
             program_status: None,
             program_status_seen: false,
             pty_failed: false,
@@ -350,6 +355,7 @@ impl TerminalView {
             inline_images: super::super::inline_image::InlineImageStore::default(),
             image_paste: image_paste::ImagePasteState::default(),
             native_clipboard: native_clipboard::NativeClipboard::default(),
+            shell_pointer: shell_pointer::Pointer::default(),
             path_drop: path_drop::PathDropState::default(),
             ssh_destination,
             port_forwards: Vec::new(),
