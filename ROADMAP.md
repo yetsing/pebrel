@@ -19,10 +19,10 @@
   本次已修复 WSL 测试绕过假启动器的隔离缺陷，未改造该通用创建路径；现场证据与范围见
   [WSL 启动器隔离记录](architecture/notes/nebula_app/platform/wsl_hooks/2026-10-27-launcher-isolation.md)。
 - Windows 分支便携包：已配置 `feature/moni-one` 推送自动构建与手动触发入口，
-  独立上传 Windows x64 ZIP 到 Actions Artifacts。最新侧栏改动提交 `cb2c425f` 已推送，
-  [对应构建](https://github.com/yetsing/pebrel/actions/runs/40866797678)成功；
-  ZIP 已下载并核对官方 artifact 摘要、构建日志包摘要、清单、架构及版本。
-  当前包版本为 `2.3.1 (cb2c425)`，本轮配色及项目头改动仍待人工验收。
+  独立上传 Windows x64 ZIP 到 Actions Artifacts。最新侧栏切换修复提交 `679e9c2b` 已推送，
+  [对应构建](https://github.com/yetsing/pebrel/actions/runs/41421384830)成功；
+  ZIP 已下载并核对构建日志包摘要、清单及运行版本。
+  当前包版本为 `2.3.1 (679e9c2)`，本轮侧栏切换仍待人工验收。
   S6 提交 `5f027305` 的包已获用户人工验收通过，详情见 [S6 记录](PANE_SIDEBAR_S6.md)；
   手动入口与下载方式见 [构建指南](docs/windows-portable-build.md)。
 - 已完成：按工作目录分组的 Pane 会话侧栏，首版仅考虑本机 Windows 的本地
@@ -54,6 +54,9 @@
 
 ## 最近完成
 
+- 2026-11-02 17:45：普通推送 `679e9c2b` 至 `feature/moni-one`，Windows portable ZIP
+  运行 `41421384830` 成功。对应 ZIP 已下载并解压至 `.tmp/windows-portable-679e9c2b/`，
+  运行版本为 `2.3.1 (679e9c2)`；本轮未创建标签或 Release，人工验收待用户完成。
 - 2026-11-02 17:27：Windows 侧栏模式的 Ctrl+Tab / Ctrl+Shift+Tab 按当前项目置顶与
   Pane 排列顺序循环；折叠组中的 Pane 仍可切换并在激活时展开。顶栏及其他平台维持原导航。
 - 2026-10-29 19:51：普通推送 `cb2c425f` 至 `feature/moni-one`，远端指向核对一致；
@@ -142,6 +145,9 @@
 
 ## 最近验证
 
+- 2026-11-02 17:45：运行 `41421384830` 的源码 SHA 与 `679e9c2b` 一致，构建及上传成功；
+  下载的 ZIP SHA256 `6DB452B5D988FCA696200F24B2C6DAD1CC2A1AB321431D64B2D43BFD1784D820`
+  与构建日志一致。归档解压成功，18 个文件，`pebrel.com --version` 输出 `2.3.1 (679e9c2)`。
 - 2026-11-02 17:27：置顶项目与创建顺序不一致时的 Windows 侧栏双向循环回归通过
   （`adjacent_tab_shortcuts_follow_pinned_sidebar_panes`，1 项）；改动 Rust 文件格式检查通过。
 - 2026-10-29 19:51：Actions 包交付校验通过：完整提交与成功运行一致，官方 artifact
@@ -255,15 +261,6 @@
   10 个 crate 通过；本次 Rust 格式和本地文档链接检查通过。全仓 fmt 仍因 1010 个
   既有 CRLF 文件失败，无 Rust 内容差异，未批量格式化无关文件。编译仍有既有警告及
   ConPTY 辅助文件部署提示。本阶段未打包发布，未把已安装旧版本当作源码验证。
-- 2026-10-27 20:33：Windows 的 Hook、来宾探测、复制、恢复、Pane 拖动和跨窗回归共
-  33 项通过，Cargo 命令实际以退出码 0 结束，未新增 WSL 遗留进程。两项新增回归在启动前
-  检查程序路径，并验证缺失启动器返回 NotFound，旧实现会在调用真实 WSL 前失败。
-  `cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked` 通过；
-  原 WSL 复制用例连续独立运行 3 轮，每轮实际返回 0，未产生 WSL 遗留进程。
-  架构检查、两个平台模块格式检查通过；架构规则测试 52 项通过、3 项跳过，复用原样
-  Rust 行数测试二进制读取当前工作树，2 项通过。精确核对命令与父进程身份后，结束旧测试产生的
-  挂起 WSL；原 PowerShell 随即自然退出，会话 99806 返回 0，确认其占用输出管道是直接原因。
-  通用 Job 创建/接管竞态尚未修复；实际 WSL 安装与真实来宾集成未作为本次测试执行。
 
 ## 当前迁移快照（2026-08-14）
 
