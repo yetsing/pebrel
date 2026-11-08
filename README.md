@@ -311,7 +311,7 @@ The internal Cargo package is still named `nebula`; the application and command
 are `pebrel`. GPUI is the product interface. The older renderer is available only
 through the explicit `legacy-shell` feature.
 
-For Windows branch artifacts from GitHub Actions, see the [portable ZIP build guide](docs/windows-portable-build.md).
+To push, wait for a Windows branch build, download and extract its artifact, run `pwsh -File scripts/windows-portable.ps1`. See the [portable ZIP build guide](docs/windows-portable-build.md) for prerequisites and download-only usage.
 
 For synchronizing a local branch with an upstream stable release, see the [release synchronization and validation guide](docs/upstream-release-validation.md) (Chinese).
 

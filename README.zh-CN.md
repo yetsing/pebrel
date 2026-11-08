@@ -269,7 +269,7 @@ cargo build --release --locked -p nebula --bin pebrel --features gpui-shell
 内部 Cargo 包名仍为 `nebula`，应用与命令名为 `pebrel`。GPUI 是正式产品界面，
 旧渲染器仅在显式启用 `legacy-shell` 时使用。
 
-通过 GitHub Actions 构建 Windows 分支便携包，见 [便携 ZIP 构建指南](docs/windows-portable-build.md)。
+执行 `pwsh -File scripts/windows-portable.ps1`，可一键推送、等待 Windows 分支构建、下载并解压产物。环境要求和仅下载方式见 [便携 ZIP 构建指南](docs/windows-portable-build.md)。
 
 将上游正式发布同步到本地分支并执行隔离检查，见 [发布同步与自动验证手册](docs/upstream-release-validation.md)。
 
