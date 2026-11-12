@@ -89,6 +89,14 @@ fn switching_top_tabs_keeps_settings_reachable_until_explicit_close(cx: &mut Tes
         assert_eq!(workspace.top_tab_count(), 3);
         workspace.settings_surface.as_ref().unwrap().0.entity_id()
     });
+    if cx.update(|window, _| {
+        crate::platform::window_chrome::layout(window)
+            .is_some_and(|layout| layout.native_controls_visible)
+    }) {
+        let settings = tab_bounds("top-tab-2", &mut cx);
+        let title = tab_bounds("workspace-titlebar", &mut cx);
+        assert!((settings.center().y - title.center().y).abs() <= px(0.5));
+    }
     for (index, selector) in [(0, "top-tab-0"), (1, "top-tab-1"), (0, "top-tab-0")] {
         click_tab(selector, &mut cx);
         workspace.read_with(&cx, |workspace, _| {
@@ -273,16 +281,24 @@ fn density_changes_real_tab_bounds_and_sidebar_drag_pitch(cx: &mut TestAppContex
             let second = tab_bounds(&second_selector, &mut window);
             // Two-line Pane rows retain their layout across density changes.
             let (height, gap) = if pane_sidebar { (74.0, 3.0) } else { (height, gap) };
-            assert_eq!(f32::from(first.size.height), height);
-            assert_eq!(f32::from(second.size.height), height);
+            let native = window.update(|window, _| crate::platform::window_chrome::layout(window));
+            let title = tab_bounds("workspace-titlebar", &mut window);
+            if !sidebar && native.is_some_and(|layout| layout.native_controls_visible) {
+                // A one-pixel bottom border can shift the content center by half a pixel.
+                for tab in [first, second] {
+                    assert!((tab.center().y - title.center().y).abs() <= px(0.5));
+                    assert!((tab.bottom() - title.bottom()).abs() <= px(1.0));
+                }
+            } else {
+                assert_eq!(f32::from(first.size.height), height);
+                assert_eq!(f32::from(second.size.height), height);
+            }
             if sidebar {
                 assert_eq!(f32::from(second.top() - first.top()), height + gap);
             }
-            let native = window.update(|window, _| crate::platform::window_chrome::layout(window));
-            let title = tab_bounds("workspace-titlebar", &mut window);
             assert_eq!(
                 f32::from(title.size.height),
-                native.map_or(title_height, |layout| layout.0)
+                native.map_or(title_height, |layout| layout.height)
             );
 
             // Padding belongs to the tab's actual click target in either density.

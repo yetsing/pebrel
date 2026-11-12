@@ -226,7 +226,7 @@ test("V2 interleaved sessions and repeated starts do not lose either completion"
   assert.deepEqual(b.sent.filter(e => e.kind === "done").map(e => e.session_id), ["child", "main"]);
 });
 
-test("V2 permission replies resume only an active turn", async (t) => {
+test("V2 permission replies resume only a reported wait", async (t) => {
   const b = await v2();
   t.after(b.cleanup);
   for (const type of ["permission.replied", "question.replied", "question.rejected"]) {
@@ -236,8 +236,16 @@ test("V2 permission replies resume only an active turn", async (t) => {
   await b.emit("session.execution.started", { sessionID: "main" });
   for (const type of ["permission.replied", "question.replied", "question.rejected"]) {
     await b.emit(type, { sessionID: "main" });
+    assert.deepEqual(b.sent.map(e => e.kind), ["session-start", "prompt"]);
   }
-  assert.deepEqual(b.sent.map(e => e.kind), ["session-start", "prompt", "tool-complete", "tool-complete", "tool-complete"]);
+  for (const type of ["permission.replied", "question.replied", "question.rejected"]) {
+    await b.emit(type === "permission.replied" ? "permission.asked" : "question.asked", { sessionID: "main" });
+    await b.emit(type, { sessionID: "main" });
+    const count = b.sent.length;
+    await b.emit(type, { sessionID: "main" });
+    assert.equal(b.sent.length, count);
+  }
+  assert.deepEqual(b.sent.map(e => e.kind), ["session-start", "prompt", "attention", "tool-complete", "attention", "tool-complete", "attention", "tool-complete"]);
   await b.emit("session.execution.succeeded", { sessionID: "main" });
   const count = b.sent.length;
   await b.emit("permission.replied", { sessionID: "main" });

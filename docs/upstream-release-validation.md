@@ -4,29 +4,94 @@
 目标是同步上游已发布的稳定 Release，并验证本分支功能；发布标签可能来自独立发布分支，
 不能用当前 `main`、版本号文件或提交日期代替它。预发布版本需另行明确指定。
 
+固定流程为：GitHub **Sync fork** 同步 fork 的 `main` → 本地快进更新 `main` →
+核对正式 Release 标签与完整 SHA → 将该 Release SHA 合入当前功能分支并验证。
+远端和本地 `main` 跟踪上游完整进度，功能分支的合并边界始终是选定 Release。
+
 代码块共享变量，应在仓库根目录、同一个独立 PowerShell 7 进程中依次执行。
 使用已安装的 Git、GitHub CLI、
 Node.js、uv/Python 3.12 和项目固定 Rust 工具链。Python 命令禁止自动下载运行时。
 目录职责与基础检查以 [贡献指南](../CONTRIBUTING.md#local-checks) 和
 [工程约束](project-constraints.md) 为准。本文不创建 CI 或服务端保护。
 
-## 1．固定本次目标
+## 1．同步 fork、更新本地 main 并固定发布目标
 
-先读根 `AGENTS.md`、`ROADMAP.md` 和涉及目录的规则。以下命令只获取远端资料；
-合并、提交和推送按用户实际授权执行，三者分别记录。工作区不干净或存在未完成合并时，
-先识别并保留已有改动，不能自行 stash、清空或重置。
+先读根 `AGENTS.md`、`ROADMAP.md` 和涉及目录的规则。Sync fork 会更新远端 fork，
+快进更新会移动本地 `main`，Release 合并会修改功能分支工作区；这些操作以及提交、推送
+分别按用户实际授权执行并记录，不能把本节整体称为只读操作。
+工作区不干净或存在未完成合并时，先识别并保留已有改动，不能自行 stash、清空或重置，
+也不能直接切换 `main` 或开始另一轮合并。
+
+### 1.1．记录功能分支并检查前置状态
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 if (git status --porcelain) { throw 'Worktree is not clean' }
 $before = git rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Not a Git checkout' }
+$branch = git branch --show-current
+if ($LASTEXITCODE -ne 0 -or !$branch -or $branch -eq 'main') {
+    throw 'Start from the feature branch, not main or a detached HEAD'
+}
 git rev-parse -q --verify MERGE_HEAD > $null
 if ($LASTEXITCODE -eq 0) { throw 'A merge is already pending' }
 $runDir = Join-Path (Get-Location) ('.tmp/upstream-sync-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $runDir | Out-Null
 $upstream = 'Kuddev/pebrel'
+$fork = 'yetsing/pebrel' # 使用其他 fork 时显式修改，并核对 origin 指向。
 $upstreamUrl = "https://github.com/$upstream.git"
+git remote -v
+if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect origin' }
+```
+
+### 1.2．通过 GitHub Sync fork 更新远端 main
+
+核对 `origin` 指向自己的 fork。在 GitHub 打开 fork 仓库，选择 `main`，执行
+**Sync fork → Update branch**，将上游 `Kuddev/pebrel` 的 `main` 同步到 fork 的 `main`。
+若提示存在冲突或不能直接同步，停止并检查 fork 独有提交；不能用强制同步丢弃它们。
+Sync fork 成功只表示远端 fork 已更新，不表示本地 `main` 或当前功能分支已经更新。
+
+### 1.3．快进更新本地 main，再返回原功能分支
+
+以下代码核对 fork 与上游的当前 `main` SHA，获取 `origin/main` 并只允许快进更新。
+若同步期间上游又有新提交，应重新 Sync fork 和获取，不使用旧快照声称已同步最新 `main`。
+
+```powershell
+$upstreamMain = gh api "repos/$upstream/commits/main" --jq .sha
+if ($LASTEXITCODE -ne 0) { throw 'Upstream main lookup failed' }
+$forkMain = gh api "repos/$fork/commits/main" --jq .sha
+if ($LASTEXITCODE -ne 0 -or $forkMain -ne $upstreamMain) {
+    throw 'Sync fork main on GitHub before updating local main'
+}
+git fetch origin 'refs/heads/main:refs/remotes/origin/main'
+if ($LASTEXITCODE -ne 0) { throw 'Origin main fetch failed' }
+if ((git rev-parse origin/main) -ne $forkMain) { throw 'Fetched origin/main differs from fork main' }
+$mainBefore = git rev-parse main
+if ($LASTEXITCODE -ne 0) { throw 'Local main is missing; inspect before proceeding' }
+git merge-base --is-ancestor main origin/main
+if ($LASTEXITCODE -ne 0) { throw 'Local main is missing, ahead or diverged; inspect before proceeding' }
+git switch main
+if ($LASTEXITCODE -ne 0) { throw 'Cannot switch to main' }
+try {
+    git merge --ff-only origin/main
+    if ($LASTEXITCODE -ne 0) { throw 'Local main fast-forward failed' }
+    if ((git rev-parse HEAD) -ne $forkMain) { throw 'Local main was not updated to fork main' }
+} finally {
+    git switch $branch
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot return to the original feature branch' }
+}
+if ((git rev-parse HEAD) -ne $before) { throw 'Feature HEAD changed while updating main' }
+```
+
+本地 `main` 缺失、领先或分叉时，先检查原因，不自动重置或改写历史。
+返回功能分支后，其 `HEAD` 应保持不变；不能在这里执行 `git merge main` 或 `git merge origin/main`。
+
+### 1.4．从上游正式 Release 固定合并提交
+
+发布标签以真正的上游仓库为准；Sync fork 不保证 fork 拥有完整的 Release 元数据或标签。
+标签即使位于独立发布分支，也使用下列核对后的 SHA，不改用 `main` 头提交。
+
+```powershell
 $releaseJson = gh api "repos/$upstream/releases/latest"
 if ($LASTEXITCODE -ne 0) { throw 'Release lookup failed' }
 $release = $releaseJson | ConvertFrom-Json
@@ -44,7 +109,8 @@ if ($LASTEXITCODE -ne 0 -or $apiCommit -ne $targetCommit) {
     throw 'Fetched tag and GitHub commit disagree'
 }
 $releaseJson | Set-Content (Join-Path $runDir 'release.json') -Encoding utf8
-@{ branch = (git branch --show-current); before = $before; tag = $tag
+@{ branch = $branch; before = $before; fork = $fork; main_before = $mainBefore; main = $forkMain
+   upstream_main = $upstreamMain; tag = $tag
    target = $targetCommit; release_url = $release.html_url } |
     ConvertTo-Json | Set-Content (Join-Path $runDir 'baseline.json') -Encoding utf8
 git log --oneline "$before..$targetCommit"
@@ -246,6 +312,19 @@ foreach ($theme in @('dark', 'light')) {
 | 拖动或点击测试不稳定 | 对照实际控件、行高、拖柄与当前几何；固定测试布局和动画，验证点击前后选择、释放后的重排 |
 | OpenCode 无结果的停止事件得到 `Idle` | 对照[状态合同](../architecture/notes/nebula_app/ai_hook/2026-11-02-explicit-status-authority.md)；无结果与成功分开测试，不能改实现强行显示成功 |
 | 缺少 ConPTY 侧载文件 | 区分编译警告与真实 PTY 验证；产品包必须按[构建指南](windows-portable-build.md)保留侧载运行库 |
+| PowerShell 提示符路径断言失败 | 区分协议中的绝对 cwd 与提示符中的 `~` 显示；测试显式覆盖主目录映射，不依赖运行机器的用户目录 |
+
+若差异涉及终端核心，可额外执行 `cargo test -p nebula_terminal --locked`。
+其中真实虚拟环境用例支持通过 `PEBREL_QA_VENV_ACTIVATE` 提供已有激活脚本，避免依赖
+Windows 的 `python` 命令是否为有效运行时。该用例要求标准 CPython `venv` 的 `-Prompt`
+接口，不能用 `uv venv` 生成的另一种激活脚本替代；可在本次隔离目录准备：
+
+```powershell
+uv run --no-project --no-python-downloads --python 3.12 -m venv --without-pip (Join-Path $runDir 'cpython-venv')
+if ($LASTEXITCODE -ne 0) { throw 'CPython venv fixture creation failed' }
+$env:PEBREL_QA_VENV_ACTIVATE = Join-Path $runDir 'cpython-venv/Scripts/Activate.ps1'
+Invoke-Check terminal { cargo test -p nebula_terminal --locked } -RustTests
+```
 
 修复前稳定复现；同一方向连续两轮未解决时，回查源码、可运行测试与正常夹具。
 不删断言、跳过测试、放宽预算或用旧程序取得绿色结果。
@@ -253,8 +332,10 @@ foreach ($theme in @('dark', 'light')) {
 ## 7．交付与提交前核对
 
 - 记录发布页面、标签、目标 SHA、原分支 SHA、合并后 SHA（如已提交）、实际修改及必要取舍。
+- 分别记录 GitHub Sync fork 结果、本地 `main` 更新前后 SHA、返回的功能分支及其未变的 HEAD。
+  本地 `main` 更新完成不代表已将其全部变更合入功能分支。
 - 核对合并提交的两个父提交；发布目标应是其中之一。可另获取同一上游 `main`，
-  列出 `$targetCommit..$upstreamMain`，逐项检查这些未发布提交没有被意外引入；
+  使用第 1 节保存的 `$upstreamMain` 列出 `$targetCommit..$upstreamMain`，逐项检查发布边界外的提交没有被意外引入；
   对本分支原本已包含的提交单独说明，不能重写历史来隐藏它们。
 - 记录每组命令、退出码、实际测试数、失败与忽略项、隔离配置及原生窗口结果。
   有失败或未执行项时，不能写“全部正常”；旧断言失败也须记录和修复。

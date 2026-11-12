@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="https://pebrel.com"><img src="https://img.shields.io/badge/Website-pebrel.com-2f81f7?style=flat-square&logo=googlechrome&logoColor=white" alt="Website: pebrel.com" /></a>
   <img src="https://img.shields.io/github/stars/Kuddev/pebrel?style=flat-square&color=ffd33d&logo=github" alt="Stars" />
   <a href="https://atomgit.com/kettys/pebrel"><img src="https://atomgit.com/kettys/pebrel/star/badge.svg" alt="AtomGitStars" /></a>
   <a href="https://hub.xerj.org/contributors/Kuddev"><img src="https://hub.xerj.org/contributors/Kuddev/badge.svg" alt="XERJ Corpus Hub contributor" /></a>
@@ -28,7 +29,7 @@
 </p>
 
 <p align="center">
-  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a>
 </p>
 
 ---
@@ -79,11 +80,11 @@ For business cooperation or sponsorship, contact: [fickleheartedkeys@163.com](ma
 </p>
 
 <p align="center">
-  <a href="extra/community/wechat-group-2026-11-04.jpg"><img src="extra/community/wechat-group-2026-11-04.jpg" alt="QR code for the Pebrel WeChat group, valid before November 4, 2026" width="300" /></a>
+  <a href="extra/community/wechat-group-2026-11-11.jpg"><img src="extra/community/wechat-group-2026-11-11.jpg" alt="QR code for the Pebrel WeChat group, valid before November 11, 2026" width="300" /></a>
 </p>
 
 <p align="center">
-  Scan with WeChat to join. Valid before November 4, 2026. Click the image to view full size.
+  Scan with WeChat to join. Valid before November 11, 2026. Click the image to view full size.
 </p>
 
 ## One Workspace
@@ -162,6 +163,12 @@ character at a time with the built-in Powerline prompt.
 Choose **Inline** (Tab accepts the suggestion), **List** (Tab accepts the selected
 candidate), or **Hybrid** (→ accepts the inline suggestion; Tab opens the list)
 in Settings.
+
+When Pebrel can query the pane's filesystem, file arguments to `nvim`, `code`, and
+`cat` use its current directory; history only ranks the discovered candidates.
+To choose among several files, select **Hybrid**: Tab opens the
+list, subsequent Tab presses cycle candidates, and Enter inserts the selection
+without running the command. Right arrow accepts the inline suggestion directly.
 
 <details>
 <summary>How history completion differs</summary>
@@ -324,6 +331,11 @@ Discord: [discord.gg/VFn4rcxmhn](https://discord.gg/VFn4rcxmhn)
 Pebrel includes third-party terminal, interface and font components. Their
 provenance, copyright and license notices are preserved in
 [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) and [licenses/](licenses/).
+
+<p>Thanks to <a href="https://molchuan.com/"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="extra/logo/acknowledgement_1molchuan_dark.png">
+  <img alt="1molchuan" src="extra/logo/acknowledgement_1molchuan_light.png" width="120">
+</picture></a> for providing extra support for Pebrel's development.</p>
 
 ## Community
 

@@ -28,6 +28,7 @@ pub struct EventProxy {
     remote_connection: Arc<std::sync::Mutex<Option<crate::ssh_session::PaneConnection>>>,
     resume_target: Arc<std::sync::Mutex<Option<crate::ssh_session::ResumeTarget>>>,
     tmux_activity: Arc<std::sync::Mutex<Option<crate::ssh_session::TmuxActivity>>>,
+    multiplexer_client: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl EventListener for EventProxy {
@@ -66,6 +67,11 @@ impl crate::ssh_session::SshEventHost for EventProxy {
             *current = activity;
         }
         self.send_event(Event::Wakeup);
+    }
+    fn ssh_multiplexer_client(&self, present: bool) {
+        if self.multiplexer_client.swap(present, std::sync::atomic::Ordering::Relaxed) != present {
+            self.send_event(Event::Wakeup);
+        }
     }
     fn ssh_stage(&self, stage: crate::ssh_session::SshStage) {
         let _ = self.stages.unbounded_send(stage);
@@ -106,6 +112,8 @@ pub struct TerminalSession {
     pub(super) remote_connection: Arc<std::sync::Mutex<Option<crate::ssh_session::PaneConnection>>>,
     pub(crate) resume_target: Arc<std::sync::Mutex<Option<crate::ssh_session::ResumeTarget>>>,
     pub(super) tmux_activity: Arc<std::sync::Mutex<Option<crate::ssh_session::TmuxActivity>>>,
+    /// The SSH PTY is owned by a terminal multiplexer client (remote process evidence).
+    pub(super) multiplexer_client: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[cfg(all(test, feature = "gpui-test-support"))]
@@ -130,6 +138,7 @@ pub(super) fn test_session_with_events() -> (
         remote_connection: Default::default(),
         resume_target: Default::default(),
         tmux_activity: Default::default(),
+        multiplexer_client: Default::default(),
     };
     let term =
         Term::new(Config::default(), &GridSize { columns: 80, screen_lines: 24 }, proxy.clone());
@@ -145,6 +154,7 @@ pub(super) fn test_session_with_events() -> (
             remote_connection: proxy.remote_connection.clone(),
             resume_target: proxy.resume_target.clone(),
             tmux_activity: proxy.tmux_activity.clone(),
+            multiplexer_client: proxy.multiplexer_client.clone(),
         },
         receiver,
         event_rx,
@@ -241,6 +251,7 @@ pub fn spawn(
         remote_connection: Default::default(),
         resume_target: Default::default(),
         tmux_activity: Default::default(),
+        multiplexer_client: Default::default(),
     };
 
     let grid = GridSize {
@@ -277,6 +288,7 @@ pub fn spawn(
             remote_connection,
             resume_target: Default::default(),
             tmux_activity: Default::default(),
+            multiplexer_client: Default::default(),
         },
         rx,
         stage_rx,
@@ -298,6 +310,7 @@ pub fn spawn_serial(
         remote_connection: Default::default(),
         resume_target: Default::default(),
         tmux_activity: Default::default(),
+        multiplexer_client: Default::default(),
     };
 
     let grid = GridSize {
@@ -320,6 +333,7 @@ pub fn spawn_serial(
             remote_connection,
             resume_target: Default::default(),
             tmux_activity: Default::default(),
+            multiplexer_client: Default::default(),
         },
         rx,
         stage_rx,
@@ -345,6 +359,7 @@ pub fn spawn_ssh(
         remote_connection: Default::default(),
         resume_target: Default::default(),
         tmux_activity: Default::default(),
+        multiplexer_client: Default::default(),
     };
 
     let grid = GridSize {
@@ -357,6 +372,7 @@ pub fn spawn_ssh(
     *proxy.resume_target.lock().unwrap() = resume_target.clone();
     let resume_state = proxy.resume_target.clone();
     let tmux_activity = proxy.tmux_activity.clone();
+    let multiplexer_client = proxy.multiplexer_client.clone();
     let sender = crate::ssh_session::spawn_session_resuming(
         destination,
         initial_remote_cwd,
@@ -377,6 +393,7 @@ pub fn spawn_ssh(
             remote_connection,
             resume_target: resume_state,
             tmux_activity,
+            multiplexer_client,
         },
         rx,
         stage_rx,
