@@ -71,6 +71,10 @@
 
 ## 最近完成
 
+- 2026-11-12 23:56：总结 v2.5.3 合并过程并本地提交[上游同步验证手册](docs/upstream-release-validation.md)。
+  补充非强制 Sync fork 接口、获准清理时的完整备份范围、文本/索引冲突状态、后台验证恢复
+  及 Auto 全仓格式复核；记录 57092f0a 的父提交、发布边界、冲突取舍、测试结果和未覆盖范围。
+  仅提交手册与进度记录，未重新同步或推送。
 - 2026-11-12 23:50：清理并重新同步上游后完成本地合并提交：完整保存旧合并的变更路径、索引与元数据，
   撤销未完成合并后恢复干净状态；通过 GitHub merge-upstream 接口执行非强制 Sync fork，
   快进本地 main 并返回原功能分支，固定 v2.5.3 标签与 API 一致的完整 SHA 后重新合并。
@@ -154,14 +158,12 @@
   来源见 [预览所有权](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-submitted-preview-ownership.md)，
   边界见 [Kimi 队列](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-kimi-tui-queue-placeholder.md)
   与 [OpenCode 空白会话](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-opencode-empty-conversation.md)。
-- 2026-10-28 14:21：普通推送 `feature/moni-one` 至 `yetsing/pebrel`，自动触发
-  [Windows 便携包构建](https://github.com/yetsing/pebrel/actions/runs/40640897243)，
-  提交 `845d1f35` 的构建、打包、缓存和上传均成功。产物保留至 2026-11-11，
-  本地 ZIP、解压程序和人工验收清单位于 `.tmp/windows-portable-845d1f35/`。
-  本次未创建 Release 或标签；用户随后确认该 S3 便携包人工验证正常。
 
 ## 最近验证
 
+- 2026-11-12 23:55：更新后的同步手册 10 个 PowerShell 代码块语法及 6 个本地链接检查通过；
+  对照 Git 父提交、发布边界和原始日志核实实例中的 SHA、43 个未纳入提交及 Rust 测试数量。
+  本轮为文档校验，未重复执行产品回归或把历史成功结果记为新的产品验收。
 - 2026-11-12 23:50：提交前复核既有自动回归与四组原生窗口回执，结果通过；新增执行
   `cargo fmt --all -- --check --config newline_style=Auto`，全仓格式检查通过，确认默认检查
   的失败仅来自换行风格，未批量格式化源文件。保留真实 CLI 及新便携包未验收的范围说明。
@@ -266,10 +268,6 @@
   x64 载荷及固定控制台运行库摘要通过。解压程序版本为 `2.3.1 (5f02730)`，
   GPUI help 标记正确；便携包 SHA256 与构建日志一致，详见 [S6 记录](PANE_SIDEBAR_S6.md)。
   本轮仅执行非交互检查，没有将其视为人工窗口验收通过。
-- 2026-10-29 10:29：S6 提交前复核通过。Rust 与 Cargo 文件摘要同已验证的
-  构建快照一致，复用 08:50 的行为、实机与便携包证据；架构门禁、本次 Rust
-  格式、79 个本地文档链接、note 结构、进度顺序/数量和差异空白检查通过。
-  中英文 README 同步默认 daemon 支持及恢复会话占位边界，人工验收状态保持待完成。
 
 ## 当前迁移快照（2026-08-14）
 
