@@ -5,13 +5,14 @@
 
 ## 当前需求（2026-10-29）
 
-- 已本地合并：按更新后的流程重新同步上游。已备份并撤销旧合并，GitHub Sync fork 确认
+- 已合并并推送：按更新后的流程重新同步上游。已备份并撤销旧合并，GitHub Sync fork 确认
   fork 与上游一致，本地 `main` 从 `f3201403` 快进到 `8f69d332`；功能分支原 HEAD 为
   `8fdcc5f1`。本次只合入正式 Release `v2.5.3` 的
   `07eb3a7a9e5d23ef4cb104a51436eb3aa3f330d4`，未合入发布边界外的 43 个 main 提交。
   10 个文件的文本冲突已处理并纳入合并提交。产品编译、功能及模块回归、四组原生窗口
   交互通过；默认全仓格式检查受 Windows 换行风格影响失败，显式指定 Auto 后全仓检查
-  通过，未批量修改换行。本轮未重测四种真实 CLI 链路，未构建新便携包或推送。
+  通过，未批量修改换行。合并及手册总结已随 `85aaab72` 推送，新便携包已下载校验；
+  四种真实 CLI 链路未重测，新包人工验收待完成。
   证据见 `.tmp/upstream-resync-20261112/`。
 - 已完成：按参考图对齐 Windows Pane 侧栏前景色，项目名浅绿、分支粉色、图钉浅蓝、
   预览灰紫及选中竖线淡蓝紫；背景与交互底色沿用当前主题，浅色模式加深对应色相。
@@ -33,11 +34,11 @@
   CLI 最终退出 0 不代表工具成功。具体取消原因未确认，未调整用户配置或系统设置；
   需在获准完成对应沙箱初始化后复测该模式。
 - Windows 分支便携包：已配置 `feature/moni-one` 推送自动构建与手动触发入口，
-  独立上传 Windows x64 ZIP 到 Actions Artifacts。提交 `087984d6` 已推送，
-  [对应构建](https://github.com/yetsing/pebrel/actions/runs/42441741184)成功；
-  ZIP 已下载到 `.tmp/windows-portable-087984d6/`，GitHub artifact 摘要、构建日志包摘要、
+  独立上传 Windows x64 ZIP 到 Actions Artifacts。提交 `85aaab72` 已推送，
+  [对应构建](https://github.com/yetsing/pebrel/actions/runs/43253408279)成功；
+  ZIP 已下载并解压到 `.tmp/windows-portable-85aaab72/run-43253408279-20261112-161551-1cf8f7d4/`，GitHub artifact 摘要、构建日志包摘要、
   文件清单、x64 架构及 CLI 版本检查通过。
-  当前包版本为 `2.4.0 (087984d)`，合并发布版后的便携包仍待人工验收。
+  当前包版本为 `2.5.3 (85aaab7)`，合并发布版后的便携包仍待人工验收。
   已提供 `pwsh -File scripts/windows-portable.ps1`，自动完成推送、等待、下载、校验与独立解压；
   可用 `-RunId` 跳过推送并继续处理当前提交的已有运行。
   S6 提交 `5f027305` 的包已获用户人工验收通过，详情见 [S6 记录](PANE_SIDEBAR_S6.md)；
@@ -71,6 +72,9 @@
 
 ## 最近完成
 
+- 2026-11-13 00:16：执行 `scripts/windows-portable.ps1`，普通推送 `85aaab72` 至
+  feature/moni-one，等待 Windows Actions 运行 `43253408279` 成功后下载并独立解压。
+  产物版本为 `Pebrel 2.5.3 (85aaab7)`，全部脚本校验通过；未替换或启动用户运行中的程序。
 - 2026-11-12 23:56：总结 v2.5.3 合并过程并本地提交[上游同步验证手册](docs/upstream-release-validation.md)。
   补充非强制 Sync fork 接口、获准清理时的完整备份范围、文本/索引冲突状态、后台验证恢复
   及 Auto 全仓格式复核；记录 57092f0a 的父提交、发布边界、冲突取舍、测试结果和未覆盖范围。
@@ -149,18 +153,14 @@
   修复项目头外边距导致的 8 像素滚动定位差额，原断言保持通过。
   未新增依赖或持久化字段，工作区根文件仍为 2479 行。依据见
   [项目交互记录](architecture/notes/nebula_app/gpui_shell/workspace/2026-10-28-sidebar-project-interactions.md)。
-- 2026-10-28 21:56：完成 S4 最近提交预览。PowerShell 按当前 Shell token 消费完整接受文本，
-  Codex 复用原生身份及用户投影，OpenCode 按确认的用户消息或入队记录投影，Pi 按用户角色和
-  SDK 当前分支投影，Kimi 仅读取精确会话主 Agent 的原生用户回合。多行合并后两行省略，
-  身份替换、返回 Shell 和晚到请求不能串项。用户已允许 Kimi 队列占位，队列结束后恢复原生预览。
-  OpenCode 空白新会话清理和无 PID 的同桥实例切换也已修复，保留外来实例及旧序号拒绝。
-  未新增依赖或持久化字段，工作区根文件仍为 2479 行，未修改用户全局 Agent 配置。
-  来源见 [预览所有权](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-submitted-preview-ownership.md)，
-  边界见 [Kimi 队列](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-kimi-tui-queue-placeholder.md)
-  与 [OpenCode 空白会话](architecture/notes/nebula_app/gpui_shell/terminal/view/2026-10-28-opencode-empty-conversation.md)。
 
 ## 最近验证
 
+- 2026-11-13 00:16：自动化脚本完整执行推送、等待、下载和解压，退出码为 0。artifact
+  `13960314439` 的 SHA256 与 GitHub 元数据一致，便携 ZIP 的 SHA256 与构建日志一致；
+  18 项文件清单、x64 二进制架构、GPUI 帮助入口及提交版本检查通过。ZIP 大小 42381671
+  字节，回执位于 `.tmp/windows-portable-85aaab72/run-43253408279-20261112-161551-1cf8f7d4/verification.json`。
+  OpenCode 桥接 Windows/Linux 作业通过，macOS 因不支持的运行器配置取消；本轮未执行新包 GUI 人工验收。
 - 2026-11-12 23:55：更新后的同步手册 10 个 PowerShell 代码块语法及 6 个本地链接检查通过；
   对照 Git 父提交、发布边界和原始日志核实实例中的 SHA、43 个未纳入提交及 Rust 测试数量。
   本轮为文档校验，未重复执行产品回归或把历史成功结果记为新的产品验收。
@@ -262,12 +262,6 @@
   确认 OpenCode 和 Kimi 最近提交预览均正常；结合此前其他人工验收通过的结果，
   S6 验收完成。此前排查确认了旧 OpenCode 插件和未启用的 Kimi 接入，
   不再将普通提交显示占位记为待修复异常。结果与前置条件见 [S6 记录](PANE_SIDEBAR_S6.md)。
-- 2026-10-29 15:36：远端运行 `40834693046` 的源码 SHA 为
-  `5f0273057b1561353e2fb4e6fecca07f4bf48ecb`，Windows 构建及上传成功。
-  下载归档与官方 artifact digest、大小一致，两层 ZIP CRC、18 文件清单、五个
-  x64 载荷及固定控制台运行库摘要通过。解压程序版本为 `2.3.1 (5f02730)`，
-  GPUI help 标记正确；便携包 SHA256 与构建日志一致，详见 [S6 记录](PANE_SIDEBAR_S6.md)。
-  本轮仅执行非交互检查，没有将其视为人工窗口验收通过。
 
 ## 当前迁移快照（2026-08-14）
 
