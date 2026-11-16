@@ -156,7 +156,7 @@ impl NebulaWorkspace {
             TabMeta { shell_tag, launch: Some(launch_session), ..TabMeta::default() },
         );
         self.active = at;
-        self.reveal_active_tab();
+        self.reveal_active_tab(cx);
         self.focus_active(window, cx);
         self.sync_side_panel_to_active(true, cx);
         cx.notify();

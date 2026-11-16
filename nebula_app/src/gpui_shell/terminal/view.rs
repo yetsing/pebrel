@@ -47,8 +47,8 @@ use gpui::{
     App, AppContext as _, Bounds, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable,
     Font, FontStyle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Point, Render,
-    ScrollWheelEvent, Size, StatefulInteractiveElement as _, Styled as _, UTF16Selection, Window,
-    div, point, px,
+    ScrollWheelEvent, SharedString, Size, StatefulInteractiveElement as _, Styled as _,
+    UTF16Selection, Window, div, point, px,
 };
 use gpui_component::Sizable as _;
 use nebula_settings::CellWidthModeName;
@@ -207,6 +207,7 @@ pub enum TerminalViewEvent {
     PreviewChanged,
     /// OSC 标题变化，宿主应刷新 Tab 标题。
     TitleChanged,
+    HostIconChanged,
     /// Newly confirmed native recovery metadata must reach a checkpoint promptly.
     SessionIdentityChanged,
     /// 会话结束（子进程退出或 PTY 故障），只发一次。
@@ -402,6 +403,7 @@ pub struct TerminalView {
     pending_shell_command: Option<startup_command::PendingShellCommand>,
     recovery: startup_command::SessionRecovery,
     pub(crate) session_launch: crate::session::LaunchSession,
+    pub(in crate::gpui_shell) shell_artwork: Option<crate::shell_detect::ShellArtwork>,
     /// OSC 1337 图片的串行后台解码队列和有界像素缓存。图片不进入字符网格，
     /// 只用事件携带的绝对行锚定到对应的 scrollback 位置。
     pub(super) inline_images: super::inline_image::InlineImageStore,
@@ -411,6 +413,7 @@ pub struct TerminalView {
     path_drop: path_drop::PathDropState,
     /// SSH 直连目的地（`user@host[:port]`）；本地会话为 None。
     pub ssh_destination: Option<String>,
+    ssh_host_icon: Option<&'static crate::display::ui::os_icons::OsIcon>,
     /// 本 pane 拥有的本地端口转发；pane 销毁即停止监听。
     pub(crate) port_forwards: Vec<crate::ssh_session::LocalForward>,
     pub(crate) port_forward_task: Option<gpui::Task<()>>,
@@ -801,7 +804,7 @@ impl TerminalView {
                 }
             },
             TermEvent::InlineImage { data, placement } => {
-                match self.inline_images.enqueue(data, placement) {
+                match self.inline_images.enqueue_inline(data, placement, &self.palette) {
                     Ok(()) => self.drive_inline_image_decode(cx),
                     Err(error) => log::warn!("terminal image dropped: {error}"),
                 }

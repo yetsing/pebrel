@@ -2,6 +2,29 @@
 
 use super::{TerminalView, last_path_component};
 
+/// Resolve once at launch so later changes to the default shell cannot relabel a live pane.
+pub(super) fn shell_artwork(
+    context: &crate::runtime_exec::PaneExecContext,
+    shell_name: Option<&str>,
+) -> Option<crate::shell_detect::ShellArtwork> {
+    use crate::shell_detect::shell_artwork;
+
+    if let Some(distro) = context.wsl_distribution() {
+        return match distro {
+            Some(distro) => shell_artwork(&format!("wsl:{distro}")),
+            None => shell_artwork("wsl"),
+        };
+    }
+    let id = match context.shell_program() {
+        Some(program) => {
+            let filename = program.rsplit(['/', '\\']).next().unwrap_or(program);
+            std::borrow::Cow::Borrowed(std::path::Path::new(filename).file_stem()?.to_str()?)
+        },
+        None => std::borrow::Cow::Owned(crate::platform::shell::default_shell_id()),
+    };
+    shell_artwork(&id).or_else(|| shell_name.and_then(shell_artwork))
+}
+
 fn ssh_label(destination: Option<&str>, directory: &std::path::Path) -> Option<String> {
     let destination = destination?;
     let profiles = crate::ssh_profiles::SshProfiles::load(&directory.join("ssh_profiles.json"))

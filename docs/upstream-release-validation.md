@@ -193,14 +193,14 @@ Invoke-Check product {
     cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked
 }
 Invoke-Check feature-tests {
-    cargo test -p nebula --bin pebrel --features gpui-shell,gpui-test-support --locked -- pane_groups pane_sidebar input_preview ai_hook:: assistant_answer:: input::terminal_input platform::ai_session_identity platform::project_directory platform::private_file workspace::windowing::transfer_tests workspace::tab_drag workspace::tab_duplication workspace::settings_navigation::ui_tests workspace::terminal_activity::tests --test-threads=1
+    cargo test -p nebula --bin pebrel --features gpui-shell,gpui-test-support --locked -- pane_groups pane_sidebar input_preview ai_hook:: assistant_answer:: input::terminal_input platform::ai_session_identity platform::project_directory platform::private_file workspace::windowing:: workspace::sidebar_groups workspace::tab_scroll workspace::tab_drag workspace::tab_duplication workspace::settings_navigation::ui_tests workspace::terminal_activity::tests --test-threads=1
 } -RustTests
 Invoke-Check bridges {
     node --test scripts/tests/opencode-notification-bridge.test.mjs scripts/tests/pi-notification-bridge.test.mjs
 }
 Invoke-Check settings { cargo test -p nebula-settings --locked } -RustTests
 Invoke-Check i18n { cargo test --manifest-path tools/i18n-contract/Cargo.toml --locked } -RustTests
-Invoke-Check line-budget { cargo test -p nebula --features gpui-shell --test file_line_budget --locked } -RustTests
+Invoke-Check line-budget { cargo test -p nebula --features gpui-shell,gpui-test-support --test file_line_budget --locked } -RustTests
 Invoke-Check whitespace { git diff --check }
 ```
 
@@ -220,6 +220,7 @@ Invoke-Check whitespace { git diff --check }
 只有源码、feature、配置及目标未变且有完整成功结果时才复用已完成检查；部分日志或旧的
 `ready.json` 不算完成证据。后续改动仅影响单元测试时，重跑相关测试及工程检查即可，
 不重复执行与改动无关且已经通过的原生窗口检查。
+行数检查与功能回归使用相同的 GPUI feature 组合，减少无关的重复编译；仍需实际执行行数测试。
 
 格式检查执行 `cargo fmt --all -- --check` 并保留结果。已有 CRLF 导致失败时，
 核对其是否在本次改动之外，不批量格式化来清障；另对修改的 Rust 文件使用
@@ -346,6 +347,7 @@ foreach ($theme in @('dark', 'light')) {
 | PowerShell 提示符路径断言失败 | 区分协议中的绝对 cwd 与提示符中的 `~` 显示；测试显式覆盖主目录映射，不依赖运行机器的用户目录 |
 | OpenCode 活动回合中的回复不再触发恢复 | 检查是否先报告对应等待；覆盖无等待、有效等待及重复回复，不能把“回合活动”代替“已报告等待” |
 | Pane 行高测试与原生标题栏断言冲突 | 保留 Windows Pane ID、固定行高和拖柄重排断言，同时合入上游原生控件可见时的标题栏中心与边界容差 |
+| 上游 Tab 专用控件测试在 Windows 找不到元素 | 与 Pane 产品测试分开：测试夹具直接渲染 Tab 侧栏，复用产品拖动更新及释放方法，验证图标、关闭状态和分组排序；不向产品增加兼容选择器，也不删减 Pane 回归 |
 
 若差异涉及终端核心，可额外执行 `cargo test -p nebula_terminal --locked`。
 其中真实虚拟环境用例支持通过 `PEBREL_QA_VENV_ACTIVATE` 提供已有激活脚本，避免依赖

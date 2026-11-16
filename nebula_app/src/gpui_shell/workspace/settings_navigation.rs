@@ -1,6 +1,8 @@
 use gpui::{App, AppContext as _, Context, Entity, Focusable as _, Window};
 use nebula_settings::TabsPositionName;
 
+use crate::gpui_shell::prelude::IconName;
+
 use super::{
     NebulaWorkspace, SettingsPane, SettingsPaneEvent, SidebarActivity, TabPresentation,
     tab_reveal_instant,
@@ -91,7 +93,10 @@ impl NebulaWorkspace {
         }
 
         if let Some((view, _)) = self.settings_surface.as_ref() {
-            view.update(cx, |view, cx| view.refresh_provider_installations(cx));
+            view.update(cx, |view, cx| {
+                view.refresh_provider_installations(cx);
+                view.refresh_detected_ssh_icons(cx);
+            });
             let focus = view.read(cx).focus_handle(cx);
             window.defer(cx, move |window, cx| window.focus(&focus, cx));
         }
@@ -104,7 +109,7 @@ impl NebulaWorkspace {
         }
         self.settings_tab_open = false;
         self.leave_settings(window, cx);
-        self.reveal_active_tab();
+        self.reveal_active_tab(cx);
         cx.notify();
         if self.tabs.is_empty() {
             self.close_empty_workspace(window, cx);
@@ -174,11 +179,8 @@ impl NebulaWorkspace {
                 .text(crate::i18n::Message::CommonSettings)
                 .into(),
             tooltip: None,
-            is_settings: true,
             activity: SidebarActivity::Idle,
-            logo_image: None,
-            logo_pending: false,
-            program_glyph: None,
+            icon: super::tab_presentation::TabIcon::Symbol(IconName::Settings),
             shell_tag: None,
             color: None,
             renaming: None,

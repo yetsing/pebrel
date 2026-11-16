@@ -4,20 +4,364 @@ Every release entry is provided in English and Simplified Chinese.
 
 每个版本条目均同时提供英文和简体中文说明。
 
+## 2.5.8 - Unreleased
+
+- `Pebrel-v2.5.8-linux-x64-preview.AppImage`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-linux-x64-preview.deb`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-linux-x64-preview.tar.gz`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-macos-arm64-preview.dmg`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-macos-x64-preview.dmg`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-windows-x64.zip`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-windows-x64-setup.exe`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-windows-arm64.zip`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-windows-arm64-setup.exe`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-android-universal-preview.apk`: `PENDING FINAL BUILD`
+- `Pebrel-v2.5.8-relay-manual.tar.gz`: `PENDING FINAL BUILD`
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Added
+
+- Added renaming for saved command groups. Addresses [#660](https://github.com/Kuddev/nebula/issues/660).
+- Added an Android conversation view for supported agents in SSH terminals, with sent messages, agent status, and edited files in the timeline.
+- Added editable Android shortcuts and grouped the fields in the SSH connection form.
+
+#### Fixed
+
+- Fixed vertical dragging in the tab sidebar so tabs can be reordered again.
+- Fixed uneven sizes and alignment of shell and host icons in tab rows and pickers.
+- Fixed split tabs showing a generic icon instead of the focused shell's icon.
+- Fixed the sidebar activity indicator so it shares the close button's center.
+- Fixed SFTP refresh and parent navigation when the current directory has been deleted. Addresses [#974](https://github.com/Kuddev/nebula/issues/974).
+- Fixed Android SSH tabs dropping after a network change or when the device goes to sleep.
+- Fixed the white plate behind the Android launcher icon on launchers that support adaptive icons.
+- Fixed automatic Android host icons overwriting role icons such as Docker or server.
+- Fixed Android SFTP uploads rejecting batches when the JSON encoder escapes Base64 characters.
+- Fixed built-in command palette labels displaying Chinese when English is selected.
+- Fixed repeated disk writes during frequent agent events when the session details have not changed.
+
+#### Improved
+
+- Improved Android SFTP uploads by preparing the next batch while the current batch is sent.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 新增
+
+- 新增已保存命令分组的重命名。对应 [#660](https://github.com/Kuddev/nebula/issues/660)。
+- 新增 Android SSH 终端内受支持助手的对话视图，时间线可显示已发送消息、助手状态和改动文件。
+- 新增 Android 自定义快捷键编辑，并将 SSH 连接表单按用途分组。
+
+#### 修复
+
+- 修复侧栏标签不能上下拖动排序的问题。
+- 修复标签行和选择器中 Shell 与主机图标大小不一、对齐不齐的问题。
+- 修复分屏标签只显示通用图标的问题，现在显示聚焦窗格的 Shell 图标。
+- 修复侧栏运行状态图标偏移的问题，使它与关闭按钮共用同一中心。
+- 修复 SFTP 当前目录被删除后，刷新和返回上一级失效的问题。对应 [#974](https://github.com/Kuddev/nebula/issues/974)。
+- 修复 Android 在切换网络或设备休眠时 SSH 标签页掉线的问题。
+- 修复支持自适应图标的 Android 启动器给应用图标加白底的问题。
+- 修复 Android 自动识别主机系统图标时覆盖 Docker、服务器等用途图标的问题。
+- 修复 Android 对 Base64 字符进行 JSON 转义时，SFTP 上传批次被拒绝的问题。
+- 修复选用英文时，命令面板的内置命令仍显示中文的问题。
+- 修复助手频繁报告状态、但会话信息未变时反复写盘的问题。
+
+#### 改进
+
+- 改进 Android SFTP 上传，在传输当前批次时准备下一批数据。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/Kuddev"><img src="https://avatars.githubusercontent.com/u/292709043?v=4&amp;s=96" width="48" height="48" alt="Kuddev" title="Kuddev" /></a>
+  <a href="https://github.com/Aschenbath"><img src="https://avatars.githubusercontent.com/u/184111764?v=4&amp;s=96" width="48" height="48" alt="Aschenbath" title="Aschenbath" /></a>
+  <a href="https://github.com/Celestial-0"><img src="https://avatars.githubusercontent.com/u/156834902?v=4&amp;s=96" width="48" height="48" alt="Celestial-0" title="Celestial-0" /></a>
+  <a href="https://github.com/not-exist"><img src="https://avatars.githubusercontent.com/u/121529946?v=4&amp;s=96" width="48" height="48" alt="not-exist" title="not-exist" /></a>
+</p>
+
+- [@Kuddev](https://github.com/Kuddev)
+- [@Aschenbath](https://github.com/Aschenbath)
+- [@Celestial-0](https://github.com/Celestial-0)
+- [@not-exist](https://github.com/not-exist)
+
+## 2.5.7 - 2026-11-13
+
+```text
+c1e61e4ed207ccbb6212ccecbffb6a06ebe242e961814a16b2d5ec0c00ab2b74  Pebrel-v2.5.7-linux-x64-preview.AppImage
+5e4f836f09a472f22d5ec96467b9227887933367f66810a127465b848728ef66  Pebrel-v2.5.7-linux-x64-preview.deb
+19175364d4dadd0e1745af48c87ab5f6c282616033a3b73c8c52a621385bc75c  Pebrel-v2.5.7-linux-x64-preview.tar.gz
+b0f3a72f9d702e902b6f6973cfd86534ebf809ab3b512dc056ed17d0f3b3a308  Pebrel-v2.5.7-macos-arm64-preview.dmg
+e99de07a91d299ad3982292bdea025b1325ee0d9b50d1fd39b0d40a4e67c9410  Pebrel-v2.5.7-macos-x64-preview.dmg
+fc39e94fcc1eed82c33f718ba7349ae012da806e5fd223bfc7197c785e13793f  Pebrel-v2.5.7-windows-x64.zip
+f5d6c7684565cda9ec4159592e43a02d96cb10f437a075060c4248f8dde21290  Pebrel-v2.5.7-windows-x64-setup.exe
+9bb812a6a8c8cc0f68449810281a317d8a3fc3711a13d77f62a9d5f578fa81ed  Pebrel-v2.5.7-windows-arm64.zip
+31937d63d192cad33d7a343ccabcf165d6c3d42fd2b32b95e0bc9e4771db72ed  Pebrel-v2.5.7-windows-arm64-setup.exe
+6343c1e52d09dfcbd3f9293c053bf20e5bd068b8cec812ec9d10a23ca89a3fb7  Pebrel-v2.5.7-android-universal-preview.apk
+5f2f9917b13ed4a5477d099a0ac7bbfcb133742613a7f4e0be6ecf58fb4b944c  Pebrel-v2.5.7-relay-manual.tar.gz
+```
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Improved
+
+- Improved tab recognition with a fixed icon before each title. Shell and tab type icons fill that spot by default, with activity still shown at the trailing edge. Addresses [#871](https://github.com/Kuddev/nebula/issues/871).
+
+#### Fixed
+
+- Fixed display formulas reverting to source when scrolled partly out of view and their source rows are still retained by the terminal. Addresses [#909](https://github.com/Kuddev/nebula/issues/909).
+- Fixed LaTeX underbraces so they span the expression above them.
+- Fixed annotated LaTeX arrows so their shafts extend to fit the labels.
+- Fixed inline formulas ending at the right edge of a terminal row being rejected because of text on the next line. Addresses [#772](https://github.com/Kuddev/nebula/issues/772).
+- Fixed empty command output streams so the stream switcher stays visible and copying leaves the clipboard intact. Addresses [#900](https://github.com/Kuddev/nebula/issues/900).
+- Fixed directional pane shortcuts skipping the nearest pane when exiting zoom.
+- Fixed shared Codex backends on Linux assigning a conversation to the wrong terminal pane. Addresses [#633](https://github.com/Kuddev/nebula/issues/633).
+- Fixed Windows portable copies downloading a setup executable they cannot use. The update dialog offers the matching ZIP instead. Addresses [#533](https://github.com/Kuddev/nebula/issues/533).
+- Fixed Android SSH reconnection opening a new workspace when the previous one has stopped. A running workspace still reconnects to the same shell. Addresses [#794](https://github.com/Kuddev/nebula/issues/794).
+- Fixed the background color of opaque Sixel images when reverse video is active.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 改进
+
+- 改进标签识别：标题前默认显示 Shell 或标签类型图标，占位宽度固定，运行状态仍在右侧。对应 [#871](https://github.com/Kuddev/nebula/issues/871)。
+
+#### 修复
+
+- 修复块级公式部分滚出屏幕后退回源码的问题。终端仍保留公式源行时，会继续显示可见部分。对应 [#909](https://github.com/Kuddev/nebula/issues/909)。
+- 修复 LaTeX 下括号过短的问题，使它覆盖上方表达式。
+- 修复带标注的 LaTeX 箭头过短的问题，使箭杆按标注宽度伸展。
+- 修复行内公式刚好在终端行末闭合时，被下一行文字误判而不渲染的问题。对应 [#772](https://github.com/Kuddev/nebula/issues/772)。
+- 修复切到空命令输出流时视图消失的问题。仍可切回其他输出流，复制空流不会覆盖剪贴板。对应 [#900](https://github.com/Kuddev/nebula/issues/900)。
+- 修复退出分屏放大时，方向快捷键跳过相邻窗格的问题。
+- 修复 Linux 上共享 Codex 后台将对话关联到错误窗格的问题。对应 [#633](https://github.com/Kuddev/nebula/issues/633)。
+- 修复 Windows 便携版误下无法使用的安装程序的问题。更新弹窗会提供对应架构的 ZIP。对应 [#533](https://github.com/Kuddev/nebula/issues/533)。
+- 修复 Android SSH 重连时，原工作区停止后另起工作区的问题。仍在运行的工作区可重连到原 Shell。对应 [#794](https://github.com/Kuddev/nebula/issues/794)。
+- 修复反色模式下不透明 Sixel 图像的背景颜色错误。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/Kuddev"><img src="https://avatars.githubusercontent.com/u/292709043?v=4&amp;s=96" width="48" height="48" alt="Kuddev" title="Kuddev" /></a>
+</p>
+
+- [@Kuddev](https://github.com/Kuddev)
+
+## 2.5.6 - 2026-11-13
+
+```text
+fc48b87619bee08e4a1f6af266bb69d968276ed5fbf0043df4001bd12e7201ce  Pebrel-v2.5.6-android-universal-preview.apk
+dcce7fdab70119d7b1216089a0370b02501f47f04c9911dbd001beae503ee80b  Pebrel-v2.5.6-linux-x64-preview.AppImage
+dc27eee18ae3771e816c58cb344156509452598036a0d83acef42a2cbbadf3d2  Pebrel-v2.5.6-linux-x64-preview.deb
+072ae0467dba53f2c32b6ee1985e2a535b0431ba675429a24e2beac009e28533  Pebrel-v2.5.6-linux-x64-preview.tar.gz
+c969278251b0bb0d80b885fb3e4c68220b34119a9ba58ffa5f99adf3ae309ed5  Pebrel-v2.5.6-macos-arm64-preview.dmg
+dfc2b0d667333732c8780616892f0c0c769d1b877df22cc78c300a646951b7b3  Pebrel-v2.5.6-macos-x64-preview.dmg
+13fc7f9cef7997f7f9161c55d81b5993f635f68178ccc1adcf7ff6177ec96126  Pebrel-v2.5.6-relay-manual.tar.gz
+e6559dd70ea7f8cb65766102da52c31c83f4593ef3a08639faab5620c6794235  Pebrel-v2.5.6-windows-arm64-setup.exe
+2d95e4641f9554cb8f8fd3df9ff32c6e72a2199d5a67c8f4242a2d1fdd1efc43  Pebrel-v2.5.6-windows-arm64.zip
+8454f8e2c8de64a2b4fb159a8d712cda3f148cb7e14e7c194a1ca76811958d86  Pebrel-v2.5.6-windows-x64-setup.exe
+079c6409cd5fcf8bc173deb482e5a916bf99d8aedbd2a4c928babf1e768187cd  Pebrel-v2.5.6-windows-x64.zip
+```
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Added
+
+- Added Sixel inline images to desktop terminal panes. Programs that emit Sixel can display images in place. Addresses [#214](https://github.com/Kuddev/nebula/issues/214).
+
+#### Fixed
+
+- Fixed terminal cell size queries at startup so graphics tools can receive a reply without writing more output.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 新增
+
+- 桌面终端新增 Sixel 行内图片支持。程序输出 Sixel 图像时，图片会直接显示在终端里。对应 [#214](https://github.com/Kuddev/nebula/issues/214)。
+
+#### 修复
+
+- 修复终端启动时单元格尺寸查询的回复延后问题。图形工具无需继续输出就能收到尺寸。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/JoyElliot"><img src="https://avatars.githubusercontent.com/u/72300219?v=4&amp;s=96" width="48" height="48" alt="JoyElliot" title="JoyElliot" /></a>
+</p>
+
+- [@JoyElliot](https://github.com/JoyElliot) ([#827](https://github.com/Kuddev/pebrel/pull/827))
+
+## 2.5.5 - 2026-11-13
+
+```text
+a6849bd0ec2e194332ed14ec4e8720a35f283383cce128b8a8d0bc59170ebf74  Pebrel-v2.5.5-android-universal-preview.apk
+21e80270202d6e8e383858e481a997e42c0408ffe41f1a6329150ef110efbeec  Pebrel-v2.5.5-linux-x64-preview.AppImage
+2a681838080877b8e1ad8d9bb632b67c8de2e9b29174972b257e4d48ae05a84c  Pebrel-v2.5.5-linux-x64-preview.deb
+7cd3de5ea8ab7f230126d5ce5637607c77312a2ef8c6fd1a784039da54ec9e69  Pebrel-v2.5.5-linux-x64-preview.tar.gz
+9b44d25396ccd2594d2215e1fba25312f831af9d2fc4019763f5750fbd510c55  Pebrel-v2.5.5-macos-arm64-preview.dmg
+d0693b28b5856d16ac533a3a896dd903618765c4e28c216bfce139ac2eb889e7  Pebrel-v2.5.5-macos-x64-preview.dmg
+9246284ed20415669889d241ba212eaff3a6ab9302f6ab35f4c6d6bb4d5b66d8  Pebrel-v2.5.5-relay-manual.tar.gz
+d62f699e457c8a56c302ca186d86ffbe748e8d52b6e4ede601a68a7706e28a41  Pebrel-v2.5.5-windows-arm64-setup.exe
+81706559b651169f51bb4b18d52ac0793b4fb64dd0025c96ca52ebd433812a5d  Pebrel-v2.5.5-windows-arm64.zip
+af448fb366500475e0fc95ca4e78953cdf4efebde54fbe96d447d54017a4b9cc  Pebrel-v2.5.5-windows-x64-setup.exe
+4edcde3b246c848004bd4dba9eb60b8c1b857697846e4fbda5e3c1987545dcec  Pebrel-v2.5.5-windows-x64.zip
+```
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Fixed
+
+- Fixed zsh click positioning after pressing Left, Right, or Option+Left/Right. Addresses [#963](https://github.com/Kuddev/nebula/issues/963).
+- Fixed a crash when a Markdown or terminal formula contains an unsupported Unicode control symbol. The original formula text stays visible. Addresses [#911](https://github.com/Kuddev/nebula/issues/911).
+
+#### Improved
+
+- Improved how quickly agent activity updates on Linux and macOS by waking the listener as soon as a connection arrives.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 修复
+
+- 修复 zsh 中按左右方向键或 Option+左右方向键后，鼠标点击无法定位光标的问题。对应 [#963](https://github.com/Kuddev/nebula/issues/963)。
+- 修复 Markdown 和终端公式遇到不支持的 Unicode 控制符号时的崩溃，保留公式原文。对应 [#911](https://github.com/Kuddev/nebula/issues/911)。
+
+#### 改进
+
+- 改进 Linux 和 macOS 的 Agent 状态更新速度，连接到达时立即唤醒监听线程。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/not-exist"><img src="https://avatars.githubusercontent.com/u/121529946?v=4&amp;s=96" width="48" height="48" alt="not-exist" title="not-exist" /></a>
+</p>
+
+- [@not-exist](https://github.com/not-exist) ([#915](https://github.com/Kuddev/pebrel/pull/915))
+
+## 2.5.4 - 2026-11-13
+
+```text
+4b869df3194fd0e4a1ead1eaad79833674d88419841859b4c133cfaf82436655  Pebrel-v2.5.4-android-universal-preview.apk
+46acb47b5fd2a9c2acdd01230a84de1ee7430e08e1dfb8a5be8438a65bd92b37  Pebrel-v2.5.4-linux-x64-preview.AppImage
+29be33b4aabe4320502d72dba95f8664df2e118f5f122905200fb36acd3f6604  Pebrel-v2.5.4-linux-x64-preview.deb
+f5ba273f9ed89aaa1e8ed296aaf1df1a997eeb472bb1bc1ba42d36fd9476a6d0  Pebrel-v2.5.4-linux-x64-preview.tar.gz
+16cc518428122ef8a6207e51e7146b2ba14ac5b9e8df8864d1318f9b7c9d54e3  Pebrel-v2.5.4-macos-arm64-preview.dmg
+73b91d408ae32bea974e4a768f1231cbe18ba0b5afa3ea8a93ff868f34daf27d  Pebrel-v2.5.4-macos-x64-preview.dmg
+c0657bdf231774732e523fd63c28beb87e35afc0beb0763cb4efa578e73fb07c  Pebrel-v2.5.4-relay-manual.tar.gz
+98330460a78ff3366bdc279dbde280c409e6c5b5d40157513c519bc764f920b1  Pebrel-v2.5.4-windows-arm64-setup.exe
+9ad323aafedf387c9c397ec5a8cb916ce90573b4833783151651f47e565905ae  Pebrel-v2.5.4-windows-arm64.zip
+b1e33bf7d2a51d4d471eab25725574345d30cca0ba7a685b72a7900f324a5297  Pebrel-v2.5.4-windows-x64-setup.exe
+39153a6b8587ae8bed34455cc146317df9b58e4e1d868fb230177ce4cd7ce39a  Pebrel-v2.5.4-windows-x64.zip
+```
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Added
+
+- Added expandable settings subgroups for Appearance, Terminal, and Interaction.
+- Added a sidebar tab menu for grouping by project or shell, choosing an order, and adding dividers. Click a group heading to collapse or expand it.
+- Added indentation guides and Git status badges to the file tree.
+- Added automatic SSH host icons. The tab updates when the system is identified, and the last recognized icon is reused on reconnect.
+
+#### Fixed
+
+- Fixed the terminal title in sidebar mode to center between the sidebar and the right toolbar.
+- Fixed SFTP folder icons that were hard to see in some themes.
+- Fixed the SFTP drop preview disappearing while files are dragged over a destination folder.
+- Fixed the font picker so the list leaves its search field visible.
+- Fixed sidebar tab spacing, with readable titles, larger close buttons, and shell or SSH labels aligned at the right edge.
+- Fixed split indicators to highlight the focused pane and keep the thumbnail near the title.
+- Fixed split dividers to follow the pointer while resizing. Panes move with the pointer and slide into place when dragged by their header grips.
+- Fixed community theme switching so a color-only theme clears the old wallpaper and a theme with a wallpaper applies its own.
+- Fixed the first desktop session staying unavailable to the phone until a manual snapshot request. Addresses [#960](https://github.com/Kuddev/nebula/issues/960).
+- Fixed the sidebar getting stuck partway through collapse when reduced motion is enabled.
+- Fixed Option+Left/Right word movement in zsh's Emacs keymap on macOS while preserving custom bindings. Addresses [#963](https://github.com/Kuddev/nebula/issues/963).
+
+#### Improved
+
+- Improved settings navigation in short windows by scrolling the category list between the fixed search and restore controls.
+- Improved tab menus with consistent spacing and clear keyboard selection, and removed the move entries while keeping their shortcuts.
+- Improved community theme previews so an installed theme can be previewed by clicking its card.
+- Improved the fit of settings options with more compact segmented controls and drop-downs.
+- Improved tab text contrast so titles and shell labels are easier to distinguish.
+- Improved saved command actions by using the terminal icon for both run and insert.
+- Improved both sidebar toggles with matching filled and outline icons for open and closed states.
+- Improved icon clarity with vector shell and broadcast artwork and aligned SSH host icons.
+- Improved the confirmation for closing a window with a running process by highlighting the process and showing the keyboard shortcuts.
+- Improved the Plugins empty state with a folder install button and a separate refresh action.
+- Improved Backup and restore with compact storage and encryption cards and direct access to local archives.
+- Improved Windows 10 22H2 compatibility by using the system console host when opening Windows PowerShell 5.1 directly in automatic mode. Addresses [#958](https://github.com/Kuddev/nebula/issues/958).
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 新增
+
+- 新增外观、终端和交互设置的可展开子分组。
+- 新增侧栏标签分组菜单，可按项目或 Shell 分组、调整顺序和插入分隔线。点击分组标题即可折叠或展开。
+- 新增文件树缩进引导线和 Git 状态标记。
+- 新增 SSH 主机自动图标。识别成功后刷新当前标签，下次连接先用上次识别到的图标。
+
+#### 修复
+
+- 修复侧栏模式下终端标题的位置，使其在侧栏和右侧工具栏之间居中。
+- 修复部分主题下 SFTP 文件夹图标难以看清的问题。
+- 修复将文件拖到 SFTP 目标文件夹上时，拖放预览消失的问题。
+- 修复字体选择器打开后列表遮挡搜索框的问题。
+- 修复侧栏标签的排布：标题更易读、关闭按钮更大，Shell 和 SSH 短标靠右对齐。
+- 修复分屏缩略图的位置，使它靠近标题并突出当前分屏。
+- 修复分屏分隔线拖动时不跟手的问题。拖动分屏手柄时，分屏跟随指针移动并滑入目标位置。
+- 修复切换社区主题时的壁纸处理：纯配色主题清除旧壁纸，自带壁纸的主题应用自己的壁纸。
+- 修复手机连接后要等桌面手动请求快照才能看到首个会话的问题。对应 [#960](https://github.com/Kuddev/nebula/issues/960)。
+- 修复开启减少动态效果时，侧栏收起到一半卡住的问题。
+- 修复 macOS 上 zsh 的 Emacs 键位，使 Option+左右方向键按词移动，保留自定义绑定。对应 [#963](https://github.com/Kuddev/nebula/issues/963)。
+
+#### 改进
+
+- 改进矮窗口的设置导航，分类列表可滚动，搜索和恢复默认控件保持可用。
+- 改进标签菜单的间距和键盘选择提示，移除右键菜单里的移动项，保留移动快捷键。
+- 改进社区主题预览，点击已安装主题的卡片即可预览。
+- 改进设置选项，降低分段控件和下拉框的高度。
+- 改进标签文字对比度，使标题和 Shell 短标更易区分。
+- 改进保存命令的图标，运行与插入都使用方框终端图标。
+- 改进两侧栏的折叠按钮：展开实心，收起空心。
+- 改进图标清晰度，使用矢量 Shell 和广播图标，并对齐 SSH 主机图标。
+- 改进关闭窗口确认，突出正在运行的进程，并显示取消和强制关闭的快捷键。
+- 改进插件空状态，提供居中的安装入口和单独的刷新按钮。
+- 改进备份与恢复页面，使用紧凑的存储和加密卡片，支持直接访问本地备份。
+- 改进 Windows 10 22H2 的兼容性：自动模式下直接打开 Windows PowerShell 5.1 时使用系统控制台宿主。对应 [#958](https://github.com/Kuddev/nebula/issues/958)。
+
 ## 2.5.3 - 2026-11-12
 
 ```text
-PENDING FINAL BUILD  Pebrel-v2.5.3-android-universal-preview.apk
-PENDING FINAL BUILD  Pebrel-v2.5.3-linux-x64-preview.AppImage
-PENDING FINAL BUILD  Pebrel-v2.5.3-linux-x64-preview.deb
-PENDING FINAL BUILD  Pebrel-v2.5.3-linux-x64-preview.tar.gz
-PENDING FINAL BUILD  Pebrel-v2.5.3-macos-arm64-preview.dmg
-PENDING FINAL BUILD  Pebrel-v2.5.3-macos-x64-preview.dmg
-PENDING FINAL BUILD  Pebrel-v2.5.3-relay-manual.tar.gz
-PENDING FINAL BUILD  Pebrel-v2.5.3-windows-arm64-setup.exe
-PENDING FINAL BUILD  Pebrel-v2.5.3-windows-arm64.zip
-PENDING FINAL BUILD  Pebrel-v2.5.3-windows-x64-setup.exe
-PENDING FINAL BUILD  Pebrel-v2.5.3-windows-x64.zip
+b14c7ffc852a656862ab54a80b315ccc6a4d7baf71327e7863062d056671351e  Pebrel-v2.5.3-android-universal-preview.apk
+e1fb700aa7e151d32f3b00006a611e811b324b38ee4bf6f74e26398746d8dde3  Pebrel-v2.5.3-linux-x64-preview.AppImage
+5866f2ff9226bdc9b41d2a7f7325933a95fc04797697c5c5dfd33f46656e0e49  Pebrel-v2.5.3-linux-x64-preview.deb
+7971ee243fae32116e55bc271b8983ff00d1e2dfb37e9f363a589b513a0fdac7  Pebrel-v2.5.3-linux-x64-preview.tar.gz
+17945e8a8e89e05a772bb3a3ee24b4517fcd1c98fbd0a9178140d6f29ffdaa94  Pebrel-v2.5.3-macos-arm64-preview.dmg
+f229fed4b858016281f8afa430bbe229586f07449d6d945767949238554d3e8e  Pebrel-v2.5.3-macos-x64-preview.dmg
+8fb996c6f94b8a76ac2ddcc5b47099895859a6d945cdce210cb9066298adb77e  Pebrel-v2.5.3-relay-manual.tar.gz
+3f137b66f9a8c293ac0a352a6bf094571d525bb069b64ab813fe82d267efe0b5  Pebrel-v2.5.3-windows-arm64-setup.exe
+a0eebce5bfd82b4e6832c5e6b235c1f6e3aa568143587718dbc9b4a7c0d9d91e  Pebrel-v2.5.3-windows-arm64.zip
+33d89e8ca4952caacee33962e85f042a48f634dab99024d9872fb58471c86321  Pebrel-v2.5.3-windows-x64-setup.exe
+c6d7faf53defa32fc43e596d5b8a34963ef6241e95d858762bea450d5f127141  Pebrel-v2.5.3-windows-x64.zip
 ```
 
 ### English

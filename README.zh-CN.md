@@ -80,11 +80,11 @@
 </p>
 
 <p align="center">
-  <a href="extra/community/wechat-group-2026-11-11.jpg"><img src="extra/community/wechat-group-2026-11-11.jpg" alt="Pebrel 微信交流群二维码，2026 年 11 月 11 日前有效" width="300" /></a>
+  <a href="extra/community/wechat-group-2026-11-13.png"><img src="extra/community/wechat-group-2026-11-13.png" alt="Pebrel 微信交流群二维码" width="300" /></a>
 </p>
 
 <p align="center">
-  微信扫码加入，2026 年 11 月 11 日前有效。点击图片可查看原图。
+  微信扫码加入。点击图片可查看原图。
 </p>
 
 ## 一个工作区
@@ -181,7 +181,8 @@ Tab 打开列表，再次按 Tab 轮换候选，Enter 插入选中项但不执�
 - 已捕获的 Claude Code 与 Codex 回答可在阅读器中打开，支持 Markdown、公式、原文和本地图片预览。
   阅读器控件与提示随所选语言显示；复制原文保留完整回答。详见[阅读器语言说明](docs/answer-reader-language.md)。
 - 剪贴板图片会保存为 PNG，并把路径插入本地、WSL 或 SSH 会话。终端内直接显示图片需要 CLI
-  输出受支持的 OSC 1337 协议；附件缩略图取决于 CLI 自身。
+  输出 OSC 1337、通过 APC 直接传输 RGB/RGBA，或 Sixel（7 位 DCS）协议；
+  附件缩略图取决于 CLI 自身。
 
 <p align="center">
   <img src="docs/screenshots/ai-sidebar.png" alt="AI 活动侧栏" width="300" />

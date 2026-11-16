@@ -4,7 +4,10 @@ use crate::font_install::{FontSource, REQUIRED_FONT_FAMILY};
 
 const FONT_PICKER_LIST_PREFERRED_HEIGHT: f32 = 220.0;
 const FONT_PICKER_PANEL_WIDTH: f32 = 360.0;
-const FONT_PICKER_PANEL_CHROME_HEIGHT: f32 = 74.0;
+/// 面板除候选列表外的高度：上下内边距 24 + 标题 + 说明 + 两处 gap。说明在 360
+/// 宽里会折成两行，实测 103.5（2026-11-08）。原值 74 只算了一行，触发框恰好落在
+/// 下方剩余 294–324 之间时会判定“下方放得下”，面板随后被贴边逻辑推上来盖住输入框。
+const FONT_PICKER_PANEL_CHROME_HEIGHT: f32 = 104.0;
 const FONT_PICKER_OFFSET_Y: f32 = 6.0;
 const FONT_PICKER_WINDOW_MARGIN: f32 = 8.0;
 
@@ -244,7 +247,7 @@ impl SettingsPane {
         }
     }
 
-    /// 与标准 Select 共用 220px 控件列。Input 自己负责长文本的单行滚动，
+    /// 与标准 Select 共用控件列。Input 自己负责长文本的单行滚动，
     /// 逗号链再长也只能在字段内部移动，不能反向撑开设置行。
     fn font_picker_row(
         &self,
@@ -262,7 +265,7 @@ impl SettingsPane {
         let edge = cx.theme().muted_foreground.opacity(0.65);
         let control = div()
             .id(if cjk { "font-family-cjk-input-shell" } else { "font-family-input-shell" })
-            .rounded(px(6.0))
+            .rounded(px(8.0))
             .border_1()
             .border_color(if focused { cx.theme().ring } else { cx.theme().border })
             .hover(move |frame| {
@@ -272,7 +275,7 @@ impl SettingsPane {
             .relative()
             .w(px(SETTINGS_SELECT_WIDTH))
             .min_w_0()
-            .h(px(36.0))
+            .h(crate::gpui_shell::widgets::settings_select_height(cx))
             .flex()
             .items_center()
             .debug_selector(move || field_id.to_owned())
@@ -805,6 +808,7 @@ mod interaction_tests {
         let english = cx.debug_bounds("font-family-input").expect("English field is visible");
         let chinese = cx.debug_bounds("font-family-cjk-input").expect("Chinese field is visible");
         assert_eq!(english.size.width, px(SETTINGS_SELECT_WIDTH));
+        assert_eq!(english.size.height, px(30.0), "closed font trigger matches the prototype");
         assert_eq!(english.size, chinese.size, "both font fields share the same dimensions");
         assert_eq!(
             english.origin.x, chinese.origin.x,

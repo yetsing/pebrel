@@ -83,7 +83,7 @@ mod file_operations;
 pub mod markdown_view;
 mod message_queue_entry;
 mod network_proxy_model;
-mod program_identity;
+pub(crate) mod program_identity;
 mod proxy_editor;
 pub mod sftp_panel;
 pub mod side_panel;
@@ -128,7 +128,7 @@ pub(crate) use input_state::{
 pub(crate) use input_state::{nebula_input_from_raw_grid, nebula_raw_grid_row_preview};
 pub use program_identity::AiLogo;
 pub(crate) use program_identity::{
-    ai_logo, ai_logo_for_program, prepare_ai_logo_texture, program_icon,
+    ai_logo, ai_logo_for_program, prepare_ai_logo_texture, program_icon, recognized_program_icon,
 };
 pub use size_info::SizeInfo;
 pub use state::{

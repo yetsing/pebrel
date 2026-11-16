@@ -90,14 +90,20 @@ mod terminal_creation;
 use shell_picker::shell_palette_rows;
 mod settings_navigation;
 mod sidebar;
+mod sidebar_groups;
 mod ssh_dialog;
 mod ssh_reconnect;
 mod tab_drag;
 mod tab_duplication;
 mod tab_menu;
+mod tab_menu_surface;
 mod tab_presentation;
 use tab_presentation::TabMeta;
 use tab_presentation::TabPresentation;
+mod split_drag;
+use split_drag::SplitDrag;
+#[cfg(test)]
+use split_drag::split_drag_visual_geometry;
 mod tab_scroll;
 mod top_tabs;
 mod update_dialog;
@@ -187,6 +193,7 @@ fn title_bar_panel_controls() -> gpui::Div {
 /// 注册工作区快捷键；在 `gpui_component::init` 之后调用一次。
 pub fn init(cx: &mut App) {
     keyboard_bindings::init(cx);
+    tab_menu_surface::bind_keys(cx);
 }
 
 /// 一个终端 pane：视图实体 + 宿主订阅。id 即 `TerminalView::pane_id`
@@ -264,25 +271,11 @@ impl WorkspaceTab {
     }
 }
 
-/// 进行中的分隔条拖拽：目标 Split 节点以树路径寻址（`nebula_split::Divider`
-/// 同语义）。指针→比例的换算依赖 [`NebulaWorkspace::split_bounds`] 记录的
-/// 该节点上一帧视口矩形。
-struct SplitDrag {
-    tab: usize,
-    path: Vec<bool>,
-    direction: SplitDirection,
-    /// Lightweight visual preview. The pane flex tree keeps using its committed
-    /// ratio until mouse-up, so dragging never reflows terminal grids.
-    preview_ratio: f32,
-    close_target: Option<bool>,
-    last_notified: std::time::Instant,
-}
-
 /// Split 视口 / pane 矩形的帧记录（canvas prepaint 回写，`Rc<RefCell>`
 /// 避免 paint 阶段反向 update 实体）。键：(tab 下标, 节点路径)。
 type SplitBoundsStore = Rc<RefCell<HashMap<(usize, Vec<bool>), Bounds<Pixels>>>>;
 /// 键：pane id（方向导航要拿所有叶子的屏幕矩形算最近邻）。
-type PaneBoundsStore = Rc<RefCell<HashMap<u64, Bounds<Pixels>>>>;
+type PaneBoundsStore = Rc<RefCell<pane_header::PaneBounds>>;
 
 /// GPUI `Bounds` → `nebula_split::Rect`（同为窗口逻辑像素坐标系）。
 fn to_split_rect(bounds: &Bounds<Pixels>) -> nebula_split::Rect {
@@ -292,57 +285,6 @@ fn to_split_rect(bounds: &Bounds<Pixels>) -> nebula_split::Rect {
         f32::from(bounds.size.width),
         f32::from(bounds.size.height),
     )
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct SplitDragVisual {
-    divider: nebula_split::Rect,
-    close_area: Option<nebula_split::Rect>,
-}
-
-/// Compute the cheap split-drag overlay without changing either pane's layout.
-/// `close_target` uses [`nebula_split::drag_close_target`] semantics: `false`
-/// is the first (left/top) child, `true` the second (right/bottom) child.
-fn split_drag_visual_geometry(
-    direction: SplitDirection,
-    viewport: nebula_split::Rect,
-    preview_ratio: f32,
-    close_target: Option<bool>,
-) -> SplitDragVisual {
-    let usable = match direction {
-        SplitDirection::LeftRight => (viewport.w - DIVIDER_GAP).max(0.0),
-        SplitDirection::TopBottom => (viewport.h - DIVIDER_GAP).max(0.0),
-    };
-    let split = usable * preview_ratio.clamp(0.0, 1.0);
-    let divider = match direction {
-        SplitDirection::LeftRight => {
-            nebula_split::Rect::new(viewport.x + split, viewport.y, DIVIDER_GAP, viewport.h)
-        },
-        SplitDirection::TopBottom => {
-            nebula_split::Rect::new(viewport.x, viewport.y + split, viewport.w, DIVIDER_GAP)
-        },
-    };
-    let close_area = close_target.map(|second| match (direction, second) {
-        (SplitDirection::LeftRight, false) => {
-            nebula_split::Rect::new(viewport.x, viewport.y, split, viewport.h)
-        },
-        (SplitDirection::LeftRight, true) => nebula_split::Rect::new(
-            divider.x + divider.w,
-            viewport.y,
-            (viewport.w - split - divider.w).max(0.0),
-            viewport.h,
-        ),
-        (SplitDirection::TopBottom, false) => {
-            nebula_split::Rect::new(viewport.x, viewport.y, viewport.w, split)
-        },
-        (SplitDirection::TopBottom, true) => nebula_split::Rect::new(
-            viewport.x,
-            divider.y + divider.h,
-            viewport.w,
-            (viewport.h - split - divider.h).max(0.0),
-        ),
-    });
-    SplitDragVisual { divider, close_area }
 }
 
 /// 侧栏分界线在终端卡 canvas 里绘制，但视觉上属于整个窗口 chrome。
@@ -383,21 +325,9 @@ fn dock_tree(target: SplitTree<u64>, source: SplitTree<u64>, nav: SplitNav) -> S
 /// "删除按钮偏移了"）。
 const TAB_CLOSE_SIZE: f32 = 20.0;
 
-/// TABS 标题行右侧 `+` / `⋯`：命中区对照旧壳 `chrome.rs` 的 `plus_sz = 20`，
-/// 中间 `s(2)`。旧壳三点只占 15 宽，是因为它画的是瘦 chevron；竖三点要
-/// 方格才不被裁。Lucide viewBox 有内边距，图标铺满 20px 命中区，笔画才
-/// 接近旧壳 `push_add` 的 6px 臂 / `push_more` 的 2.8px 点；`Button::xsmall()`
-/// 里图标只有 12px，看起来会小一圈。
-const SIDEBAR_PLUS_SIZE: f32 = 20.0;
-const SIDEBAR_MENU_W: f32 = 20.0;
-const SIDEBAR_HEADER_ICON: f32 = 18.0;
-
-/// 侧栏文字的字号档位，**乘在终端字号上**（旧壳 chrome 同源）：标签行走
-/// BODY(1.0)——旧壳 `draw_ui_text_tracked(.., 1.0, ..)`，分组标题与右侧
-/// shell 短标各压一档。硬编码 `text_sm`(14px) 时侧栏比旧壳整体小一号，
-/// 且用户调大字号也不跟——那是用户报的"按钮比旧版小太多"。
-const SIDEBAR_TITLE_SCALE: f32 = 0.82;
-const SIDEBAR_TAG_SCALE: f32 = 0.80;
+/// Match the compact Tabs header in the prototype, with a larger hit area than the glyph.
+const SIDEBAR_HEADER_ACTION: f32 = 28.0;
+const SIDEBAR_HEADER_ICON: f32 = 15.0;
 
 /// 侧栏 tab 标签的水平预算（逻辑 px）：外层 `p_2`、行内 `px_2`、行内
 /// `gap_2` 与右侧状态槽都从侧栏宽里扣掉，剩下的除以实测 cell 宽就是可用
@@ -551,13 +481,14 @@ struct WorkspacePaletteRow {
     hint_style: WorkspacePaletteHintStyle,
     search: String,
     action: WorkspacePaletteAction,
-    /// 行首的彩色品牌图标（只有 shell/配置档行有）。旧壳的 shell 菜单同样
-    /// 是「图标 + 名字 + 灰色命令行」三段式，光靠文字分不清 pwsh 与 5.1。
-    icon: Option<std::sync::Arc<gpui::RenderImage>>,
-    /// SSH 主机行用 Nerd Font 码位（旧壳 `os_icons`），不是品牌 PNG。
-    icon_glyph: Option<char>,
-    /// 通用名词行使用组件库的线性图标；与品牌图片、系统 Nerd Font 图标互斥。
-    icon_path: Option<SharedString>,
+    icon: Option<PaletteIcon>,
+}
+
+#[derive(Clone)]
+enum PaletteIcon {
+    Shell(crate::gpui_shell::widgets::ShellIcon),
+    Host(&'static crate::display::ui::os_icons::OsIcon),
+    Symbol(SharedString),
 }
 
 pub(super) fn open_in_file_manager(path: &Path) {
@@ -637,8 +568,9 @@ pub struct NebulaWorkspace {
     settings_restore_sidebar_collapsed: Option<bool>,
     settings_restore_side_panel_open: bool,
     sidebar_collapsed: bool,
-    /// 只折叠 TABS 分区，不影响整个左栏；与旧壳分区标题的 chevron 同义。
+    /// Windows Pane 侧栏的项目分区折叠，与上游 Tab 分组独立。
     tabs_section_collapsed: bool,
+    sidebar_tab_layout: sidebar_groups::SidebarTabLayout,
     /// 标签栏布局：默认沿用左侧栏；Top 将同一组 tab 放进标题栏。
     tabs_position: nebula_settings::TabsPositionName,
     density: nebula_settings::DensityName,
@@ -647,12 +579,6 @@ pub struct NebulaWorkspace {
     /// 首次手动切换后才启用折叠动画：启动帧保持静止落位（旧壳同感，
     /// spring 构造时直接初始化在端点上）。
     sidebar_fold_armed: bool,
-    /// 同理，tab 列表的折叠动画也只在首次手动切换后启用。
-    tabs_fold_armed: bool,
-    /// 折叠/展开动画期间冻结视口高度：旧壳 `tabs_avail` 来自面板剩余高度，
-    /// 绝不把卷帘裁剪量回去再算窗口，否则溢出列表会被锁成一行滚动区。
-    tabs_fold_frozen: bool,
-    tabs_fold_seq: u64,
     /// 旧壳 `nebula_tabs_scroll`：TABS 溢出时的整行窗口起点。
     tabs_scroll: usize,
     /// 列表视口（逻辑 px），由 canvas 回写；0 表示尚未量到。
@@ -796,21 +722,21 @@ pub struct NebulaWorkspace {
 
 impl NebulaWorkspace {
     /// 所有新建标签共用同一个插入口，避免本地/SSH/设置各自解释配置。
-    fn insert_new_tab(&mut self, tab: WorkspaceTab) {
+    fn insert_new_tab(&mut self, tab: WorkspaceTab, cx: &App) {
         let position = nebula_settings::RuntimeSettings::load().new_tab_position;
         let at = new_tab_insert_index(position, self.active, self.tabs.len());
         self.insert_tab_at(at, tab, TabMeta::default());
         self.active = at;
-        self.reveal_active_tab();
+        self.reveal_active_tab(cx);
     }
 
     /// `tabs` + `tab_meta` 的唯一插入口（见 [`TabMeta`] 的同下标合同）。
-    fn insert_tab_at(&mut self, at: usize, tab: WorkspaceTab, meta: TabMeta) {
+    fn insert_tab_at(&mut self, at: usize, tab: WorkspaceTab, mut meta: TabMeta) {
+        meta.sidebar_created.get_or_insert_with(std::time::Instant::now);
         let at = at.min(self.tabs.len());
         self.tabs.insert(at, tab);
         self.tab_meta.insert(at, meta);
         self.sync_pane_groups();
-        self.clamp_tabs_scroll();
     }
 
     /// `tabs` + `tab_meta` 的唯一移除口；返回被摘的 tab 供调用方回收会话。
@@ -826,7 +752,6 @@ impl NebulaWorkspace {
         // 长度不齐时（理论上不会）宁可给默认元数据，也不要 panic。
         let meta =
             if ix < self.tab_meta.len() { self.tab_meta.remove(ix) } else { TabMeta::default() };
-        self.clamp_tabs_scroll();
         Some((tab, meta))
     }
 
@@ -867,6 +792,8 @@ impl NebulaWorkspace {
                 if !active {
                     workspace.cancel_details_panel_resize(cx);
                     workspace.cancel_left_sidebar_resize(cx);
+                    workspace.cancel_split_drag(cx);
+                    workspace.cancel_pane_drag(cx);
                 }
                 if workspace.spinner_window_active != active {
                     workspace.spinner_window_active = active;
@@ -935,13 +862,11 @@ impl NebulaWorkspace {
             settings_restore_side_panel_open: false,
             sidebar_collapsed: false,
             tabs_section_collapsed: false,
+            sidebar_tab_layout: sidebar_groups::SidebarTabLayout::default(),
             tabs_position: runtime.tabs_position,
             density: runtime.density,
             sidebar_width,
             sidebar_fold_armed: false,
-            tabs_fold_armed: false,
-            tabs_fold_frozen: false,
-            tabs_fold_seq: 0,
             tabs_scroll: 0,
             tabs_viewport_h: 0.0,
             tabs_list_width: 0.0,
@@ -959,7 +884,7 @@ impl NebulaWorkspace {
             _sidebar_resize_keys: Self::subscribe_sidebar_resize_cancel(window, cx),
             reader_focus: None,
             split_bounds: Rc::new(RefCell::new(HashMap::new())),
-            pane_bounds: Rc::new(RefCell::new(HashMap::new())),
+            pane_bounds: PaneBoundsStore::default(),
             titlebar_background: window_titlebar::TitleBarBackground::default(),
             theme_transition: crate::gpui_shell::theme::ThemeTransition::default(),
             command_palette_open: false,
@@ -1152,7 +1077,7 @@ impl NebulaWorkspace {
         self.sidebar_width = runtime.sidebar_width;
         self.tabs_position = runtime.tabs_position;
         self.density = runtime.density;
-        self.reveal_active_tab();
+        self.reveal_active_tab(cx);
         self.sync_settings_layout(tab_reveal_instant(cx));
         self.sidebar_resizing = None;
         self.reveal_if_tray_disabled(cx);
@@ -1403,9 +1328,7 @@ impl NebulaWorkspace {
         cx.notify();
     }
 
-    /// ctrl+alt+方向：按上一帧 pane 矩形找目标方向最近邻（垂直漂移 4 倍
-    /// 惩罚，`nebula_split::nav_target` 与旧壳同式）。缩放态先退出缩放再
-    /// 导航，pane 矩形下一帧才有——本次导航按缩放前记录的矩形执行。
+    /// Ctrl+Alt+方向：在未放大的分屏布局中寻找最近邻。
     fn navigate_pane(&mut self, nav: SplitNav, window: &mut Window, cx: &mut Context<Self>) {
         let active = self.active;
         let Some(WorkspaceTab::Terminal { panes, focused, zoomed, .. }) = self.tabs.get_mut(active)
@@ -1415,15 +1338,15 @@ impl NebulaWorkspace {
         if panes.len() < 2 {
             return;
         }
-        *zoomed = false;
-        let focused_id = *focused;
-        let bounds = self.pane_bounds.borrow();
-        let rects: Vec<(u64, nebula_split::Rect)> = panes
-            .iter()
-            .filter_map(|pane| bounds.get(&pane.id).map(|b| (pane.id, to_split_rect(b))))
-            .collect();
-        drop(bounds);
-        if let Some(target) = nebula_split::nav_target(&rects, focused_id, nav) {
+        let target = self.pane_bounds.borrow().direction_target(
+            panes.iter().map(|pane| pane.id),
+            *focused,
+            nav,
+        );
+        if std::mem::take(zoomed) {
+            self.mark_structural_resize(active, cx);
+        }
+        if let Some(target) = target {
             self.focus_pane(active, target, window, cx);
         } else {
             cx.notify();
@@ -1506,7 +1429,7 @@ impl NebulaWorkspace {
         ) {
             log::warn!("Could not save closed tabs: {error}");
         }
-        self.reveal_active_tab();
+        self.reveal_active_tab(cx);
         self.focus_active(window, cx);
         self.sync_side_panel_to_active(true, cx);
         cx.notify();
@@ -1737,7 +1660,6 @@ impl NebulaWorkspace {
             &crate::gpui_shell::ssh_hosts::SshHostLists::load(),
             &default_shell_id,
             language,
-            window.scale_factor().max(0.5),
         );
         self.palette_override = Some(rows);
         self.shell_picker_open = true;
@@ -2158,11 +2080,15 @@ impl NebulaWorkspace {
                 let drag_start_ratio = *ratio;
                 let divider_id =
                     SharedString::from(format!("split-divider-{tab_ix}-{drag_path:?}"));
-                let bar_color =
-                    if dragging { cx.theme().primary } else { cx.theme().border.opacity(0.35) };
+                let bar_color = if dragging {
+                    gpui::transparent_black()
+                } else {
+                    cx.theme().border.opacity(0.35)
+                };
                 // 视觉线 DIVIDER_GAP，命中区向两侧各扩 HIT_SLOP（旧壳同参）。
                 let hit = div()
-                    .id(divider_id)
+                    .id(divider_id.clone())
+                    .debug_selector(move || divider_id.to_string())
                     .absolute()
                     .map(|hit| match direction {
                         SplitDirection::LeftRight => hit
@@ -2180,24 +2106,19 @@ impl NebulaWorkspace {
                     })
                     .on_mouse_down(
                         MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.split_drag = Some(SplitDrag {
-                                tab: tab_ix,
-                                path: drag_path.clone(),
+                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                            if this.begin_split_drag(
+                                tab_ix,
+                                &drag_path,
                                 direction,
-                                preview_ratio: drag_start_ratio,
-                                close_target: None,
-                                last_notified: std::time::Instant::now(),
-                            });
-                            if let Some(WorkspaceTab::Terminal { tree, .. }) =
-                                this.tabs.get_mut(tab_ix)
-                                && let Some(SplitTree::Split { preview_ratio, dragging, .. }) =
-                                    tree.node_mut(&drag_path)
-                            {
-                                *preview_ratio = None;
-                                *dragging = true;
+                                drag_start_ratio,
+                                event.position,
+                                window,
+                                cx,
+                            ) {
+                                cx.stop_propagation();
+                                window.prevent_default();
                             }
-                            cx.notify();
                         }),
                     );
                 let divider = div()
@@ -2208,7 +2129,7 @@ impl NebulaWorkspace {
                         SplitDirection::TopBottom => bar.h(px(DIVIDER_GAP)).w_full(),
                     })
                     .bg(bar_color)
-                    .child(hit);
+                    .child(gpui::deferred(hit).with_priority(1));
 
                 div()
                     .size_full()
@@ -2234,177 +2155,6 @@ impl NebulaWorkspace {
                     .into_any_element()
             },
         }
-    }
-
-    /// 分隔条拖拽的指针移动：指针位置 → 原始比例 → 轻量预览线（常规带跟手、
-    /// 关闭区钉边示意"松手即关"）。pane flex、终端网格与 PTY 都不追预览，
-    /// 松手后才做一次结构提交。高频鼠标事件最多按 120Hz 通知绘制。
-    fn update_split_drag(
-        &mut self,
-        event: &gpui::MouseMoveEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.split_drag.is_none() {
-            return;
-        }
-        if event.pressed_button != Some(MouseButton::Left) {
-            let position = event.position;
-            self.finish_split_drag(position, window, cx);
-            return;
-        }
-        let raw = match self.split_drag_raw_ratio(event.position, window, cx) {
-            Some(raw) => raw,
-            None => return,
-        };
-        let preview_ratio = nebula_split::preview_ratio(raw);
-        let close_target = nebula_split::drag_close_target(raw);
-        let Some(drag) = self.split_drag.as_mut() else { return };
-        let changed = (drag.preview_ratio - preview_ratio).abs() > f32::EPSILON
-            || drag.close_target != close_target;
-        if !changed {
-            return;
-        }
-        let close_changed = drag.close_target != close_target;
-        drag.preview_ratio = preview_ratio;
-        drag.close_target = close_target;
-        if close_changed || drag.last_notified.elapsed() >= Duration::from_millis(8) {
-            drag.last_notified = std::time::Instant::now();
-            cx.notify();
-        }
-    }
-
-    /// Visual-only divider/close preview. It lives above the stable pane tree,
-    /// so moving it does not invoke `TerminalElement::prepaint` with new bounds.
-    fn split_drag_visual(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
-        let drag = self.split_drag.as_ref()?;
-        let viewport = self.split_bounds.borrow().get(&(drag.tab, drag.path.clone())).copied()?;
-        let visual = split_drag_visual_geometry(
-            drag.direction,
-            to_split_rect(&viewport),
-            drag.preview_ratio,
-            drag.close_target,
-        );
-        let line = visual.divider;
-        let close = visual.close_area.map(|area| {
-            div()
-                .absolute()
-                .left(px(area.x))
-                .top(px(area.y))
-                .w(px(area.w))
-                .h(px(area.h))
-                .bg(cx.theme().warning.opacity(0.12))
-        });
-        Some(
-            div()
-                .absolute()
-                .inset_0()
-                .children(close)
-                .child(
-                    div()
-                        .absolute()
-                        .left(px(line.x))
-                        .top(px(line.y))
-                        .w(px(line.w))
-                        .h(px(line.h))
-                        .bg(cx.theme().primary.opacity(0.88)),
-                )
-                .into_any_element(),
-        )
-    }
-
-    /// 当前拖拽的指针位置 → 未钳制原始比例（依赖上一帧节点视口记录）。
-    fn split_drag_raw_ratio(
-        &self,
-        position: gpui::Point<Pixels>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<f32> {
-        let drag = self.split_drag.as_ref()?;
-        let viewport = self.split_bounds.borrow().get(&(drag.tab, drag.path.clone())).copied()?;
-        let (cell_w, line_h) = TerminalView::cell_metrics(window, cx);
-        let cell = match drag.direction {
-            SplitDirection::LeftRight => f32::from(cell_w),
-            SplitDirection::TopBottom => f32::from(line_h),
-        };
-        Some(nebula_split::drag_ratio(
-            drag.direction,
-            to_split_rect(&viewport),
-            DIVIDER_GAP,
-            cell,
-            f32::from(position.x),
-            f32::from(position.y),
-        ))
-    }
-
-    /// 松手：关闭区按被挤压侧收尾（仅当那一侧是单叶——子树不做整树误杀，
-    /// 按钳制带提交）；常规带比例吸附整数单元格后写回提交值。
-    fn finish_split_drag(
-        &mut self,
-        position: gpui::Point<Pixels>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let raw = self.split_drag_raw_ratio(position, window, cx);
-        let Some(drag) = self.split_drag.take() else { return };
-        let viewport = self.split_bounds.borrow().get(&(drag.tab, drag.path.clone())).copied();
-        let (cell_w, line_h) = TerminalView::cell_metrics(window, cx);
-        let cell = match drag.direction {
-            SplitDirection::LeftRight => f32::from(cell_w),
-            SplitDirection::TopBottom => f32::from(line_h),
-        };
-
-        // 先裁定拖拽关闭；借用两段式（close_pane 需要 &mut self）。
-        let mut close_target: Option<u64> = None;
-        if let (Some(raw), Some(WorkspaceTab::Terminal { tree, .. })) =
-            (raw, self.tabs.get_mut(drag.tab))
-        {
-            if let Some(squeezed_second) = nebula_split::drag_close_target(raw) {
-                if let Some(SplitTree::Split { first, second, .. }) = tree.node_mut(&drag.path) {
-                    let child = if squeezed_second { second.as_ref() } else { first.as_ref() };
-                    if let SplitTree::Leaf(id) = child {
-                        close_target = Some(*id);
-                    }
-                }
-            }
-        }
-        if let Some(pane_id) = close_target {
-            // 繁忙 pane 会先弹确认框而不会立刻 remove_leaf；必须先清掉拖拽态，
-            // 否则确认框背后会残留一条永久高亮的分隔线。
-            if let Some(WorkspaceTab::Terminal { tree, .. }) = self.tabs.get_mut(drag.tab)
-                && let Some(SplitTree::Split { preview_ratio, dragging, .. }) =
-                    tree.node_mut(&drag.path)
-            {
-                *preview_ratio = None;
-                *dragging = false;
-            }
-            self.request_close_pane(drag.tab, pane_id, window, cx);
-            cx.notify();
-            return;
-        }
-
-        if let Some(WorkspaceTab::Terminal { tree, .. }) = self.tabs.get_mut(drag.tab) {
-            if let Some(SplitTree::Split { ratio, preview_ratio, dragging, .. }) =
-                tree.node_mut(&drag.path)
-            {
-                if let (Some(raw), Some(viewport)) = (raw, viewport) {
-                    let vp = to_split_rect(&viewport);
-                    let extent = match drag.direction {
-                        SplitDirection::LeftRight => vp.w,
-                        SplitDirection::TopBottom => vp.h,
-                    };
-                    *ratio = nebula_split::commit_ratio(
-                        nebula_split::preview_ratio(raw),
-                        extent,
-                        DIVIDER_GAP,
-                        cell,
-                    );
-                }
-                *preview_ratio = None;
-                *dragging = false;
-            }
-        }
-        cx.notify();
     }
 }
 

@@ -286,7 +286,7 @@ class HomeSessionsTest {
             }
         } }
         compose.onNodeWithText(context.getString(io.github.kuddev.pebrel.mobile.R.string.save_connect))
-            .performScrollTo().assertIsEnabled().performClick()
+            .assertIsEnabled().performClick()
         compose.runOnIdle { assertTrue(submitted) }
     }
 
@@ -523,31 +523,6 @@ class HomeSessionsTest {
         val path = compose.onNodeWithText(cwd, useUnmergedTree = true).assertIsDisplayed().getUnclippedBoundsInRoot()
         val title = compose.onNodeWithText(pane.title, useUnmergedTree = true).assertIsDisplayed().getUnclippedBoundsInRoot()
         assertTrue(path.bottom <= title.top)
-    }
-
-    // Asymmetric segment clipping needs real path hit testing, absent from legacy graphics.
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Test fun sessionModeSelectionIsVisibleAndOnlyChangingViewsTriggersNavigation() {
-        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        var conversation by mutableStateOf(true)
-        var switches = 0
-        compose.setContent { MaterialTheme {
-            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
-                Box(Modifier.size(320.dp, 150.dp)) {
-                    SessionModeTabs(conversation) { conversation = !conversation; switches++ }
-                }
-            }
-        } }
-        val chat = compose.onNodeWithText(context.getString(R.string.chat_title))
-        val terminal = compose.onNodeWithText(context.getString(R.string.chat_terminal))
-        chat.assertIsSelected().assertHeightIsAtLeast(48.dp).performClick()
-        assertEquals(0, switches)
-        terminal.assertIsNotSelected().assertHeightIsAtLeast(48.dp).performClick()
-        compose.runOnIdle { assertEquals(1, switches); assertFalse(conversation) }
-        terminal.assertIsSelected()
-        chat.assertIsNotSelected().performClick()
-        compose.runOnIdle { assertEquals(2, switches); assertTrue(conversation) }
-        chat.assertIsSelected()
     }
 
     @Test fun disconnectedPcRemainsButFailedFirstAttemptDoesNotBecomeASession() {

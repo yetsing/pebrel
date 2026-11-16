@@ -25,9 +25,9 @@
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     App, Bounds, Context, Entity, FontWeight, Hsla, InteractiveElement as _, IntoElement,
-    KeyDownEvent, MouseButton, MouseDownEvent, ObjectFit, ParentElement as _, SharedString,
-    StatefulInteractiveElement as _, Styled as _, StyledImage as _, Window, canvas, div, img, px,
-    size,
+    KeyDownEvent, MouseButton, MouseDownEvent, ObjectFit, ParentElement as _, PathBuilder, Pixels,
+    SharedString, StatefulInteractiveElement as _, Styled as _, StyledImage as _, Window, canvas,
+    div, img, px, size,
 };
 use nebula_split::{SplitDirection, SplitTree};
 
@@ -37,8 +37,11 @@ use crate::i18n::Message;
 
 use super::{NebulaWorkspace, WorkspaceTab};
 
+mod drag_motion;
+use drag_motion::PaneDragMotion;
 mod layout;
 mod sidebar;
+pub(super) use layout::PaneBounds;
 
 #[cfg(all(test, feature = "gpui-test-support"))]
 mod visual_tests;
@@ -108,113 +111,99 @@ pub(super) fn broadcast_targets(order: &[u64], source: u64) -> Vec<u64> {
     order.iter().copied().filter(|id| *id != source).collect()
 }
 
-/// 2×2 描边小方块：分屏 tab 的行首
-/// 图标。四个描边格是内容本身，不是给图标套的方框——与图标语言的"禁方盒"
-/// 不冲突。
-pub(super) fn split_glyph(size_px: f32, color: Hsla) -> impl IntoElement {
-    let cell = (size_px * 0.42).max(4.0);
-    let gap = (size_px * 0.14).max(1.5);
-    let radius = (cell * 0.28).max(1.0);
-    let square =
-        move || div().size(px(cell)).rounded(px(radius)).border(px(1.0)).border_color(color);
-    let row = move || h_flex().gap(px(gap)).child(square()).child(square());
-    v_flex().gap(px(gap)).child(row()).child(row())
-}
-
 /// A miniature of the committed split tree, with no surrounding badge or count.
 /// Reuse the split engine's geometry so all tab placements show the same layout.
 pub(super) fn split_layout_icon(tab: &WorkspaceTab, label_px: f32, ink: Hsla) -> impl IntoElement {
     let width = (label_px * 1.2).max(16.0);
     let height = width * 0.8;
-    let rectangles = match tab {
-        WorkspaceTab::Terminal { tree, .. } => split_icon_rects(tree, width, height),
-        _ => Vec::new(),
+    let (rectangles, focus) = match tab {
+        WorkspaceTab::Terminal { tree, focused, .. } => {
+            (split_icon_rects(tree, width, height), Some(*focused))
+        },
+        _ => (Vec::new(), None),
     };
-    div().relative().flex_shrink_0().w(px(width)).h(px(height)).children(
-        rectangles.into_iter().map(|rect| {
-            div()
-                .absolute()
-                .left(px(rect.x))
-                .top(px(rect.y))
-                .w(px(rect.w))
-                .h(px(rect.h))
-                .rounded(px(1.5))
-                .border(px(1.0))
-                .border_color(ink)
-        }),
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let scale = window.scale_factor();
+            let stroke = px(scale.round().max(1.0) / scale);
+            let mut outlined = (PathBuilder::stroke(stroke), false);
+            let mut filled = (PathBuilder::fill(), false);
+            for (id, rect) in &rectangles {
+                let selected = Some(*id) == focus;
+                let start =
+                    window.pixel_snap_point(bounds.origin + gpui::point(px(rect.x), px(rect.y)));
+                let end = window.pixel_snap_point(
+                    bounds.origin + gpui::point(px(rect.x + rect.w), px(rect.y + rect.h)),
+                );
+                // Snap the outer edges; the outline is centered half a stroke inside.
+                let inset = if selected { px(0.0) } else { stroke / 2.0 };
+                let target = if selected { &mut filled } else { &mut outlined };
+                target.1 |= trace_pane(
+                    &mut target.0,
+                    start.x + inset,
+                    start.y + inset,
+                    end.x - inset,
+                    end.y - inset,
+                );
+            }
+            for (path, populated) in [outlined, filled] {
+                if populated && let Ok(path) = path.build() {
+                    window.paint_path(path, ink);
+                }
+            }
+        },
     )
+    .flex_shrink_0()
+    .w(px(width))
+    .h(px(height))
 }
 
-fn split_icon_rects(tree: &SplitTree<u64>, width: f32, height: f32) -> Vec<nebula_split::Rect> {
+fn trace_pane(path: &mut PathBuilder, l: Pixels, t: Pixels, r: Pixels, b: Pixels) -> bool {
+    if l >= r || t >= b {
+        return false;
+    }
+    let radius = px(1.5).min((r - l).min(b - t) / 2.0);
+    use gpui::point;
+    path.move_to(point(l + radius, t));
+    path.line_to(point(r - radius, t));
+    path.curve_to(point(r, t + radius), point(r, t));
+    path.line_to(point(r, b - radius));
+    path.curve_to(point(r - radius, b), point(r, b));
+    path.line_to(point(l + radius, b));
+    path.curve_to(point(l, b - radius), point(l, b));
+    path.line_to(point(l, t + radius));
+    path.curve_to(point(l + radius, t), point(l, t));
+    path.close();
+    true
+}
+
+fn split_icon_rects(
+    tree: &SplitTree<u64>,
+    width: f32,
+    height: f32,
+) -> Vec<(u64, nebula_split::Rect)> {
     // Lay out in a large logical viewport before scaling: a thumbnail must not
     // impose the terminal's minimum cell size or change persisted proportions.
     tree.layout(nebula_split::Rect::new(0.0, 0.0, 1000.0, 800.0), 1.0, 1.0, 0.0, false)
         .panes
         .into_iter()
-        .map(|(_, rect)| {
+        .map(|(id, rect)| {
             let x = rect.x * width / 1000.0;
             let y = rect.y * height / 800.0;
             let w = rect.w * width / 1000.0;
             let h = rect.h * height / 800.0;
             let gap = 2.0_f32.min(w * 0.3).min(h * 0.3);
-            nebula_split::Rect::new(x + gap * 0.5, y + gap * 0.5, w - gap, h - gap)
+            (id, nebula_split::Rect::new(x + gap * 0.5, y + gap * 0.5, w - gap, h - gap))
         })
         .collect()
 }
 
-/// 广播记号：中心点 + 左右各两段同心弧。fork 的 `IconName` 里没有
-/// radio/broadcast（已核对 `crates/ui/src/icon.rs`），与其硬凑一个语义不对的
-/// 现成图标，不如自绘——弧沿用 `sidebar.rs::spinner` 那套"沿弧铺圆点"的画法，
-/// 笔画与 SVG 线性图标同粗，混在一排 ghost 按钮里不出戏。
-fn broadcast_mark(side: f32, color: Hsla) -> impl IntoElement {
-    canvas(
-        move |_, _, _| {},
-        move |bounds, _, window, _| {
-            let ox = f32::from(bounds.origin.x);
-            let oy = f32::from(bounds.origin.y);
-            let box_side = f32::from(bounds.size.width);
-            let (cx, cy) = (ox + box_side * 0.5, oy + box_side * 0.5);
-            let stroke = (box_side * 0.13).max(1.2);
-            // 中心点：实心，直径略大于笔画，才不会被两侧的弧压成一根线。
-            let dot = stroke * 1.6;
-            window.paint_quad(
-                gpui::fill(
-                    Bounds::new(
-                        gpui::point(px(cx - dot * 0.5), px(cy - dot * 0.5)),
-                        size(px(dot), px(dot)),
-                    ),
-                    color,
-                )
-                .corner_radii(px(dot * 0.5)),
-            );
-            // 两对同心弧，各覆盖 ±44°：右侧朝 0°、左侧朝 180°。相邻点重叠约
-            // 一半，与 spinner 同一条不留缝也不过密的间距规则。
-            const SPAN: f32 = 0.77; // 弧度，≈44°
-            for ring in 0..2 {
-                let radius = box_side * (0.26 + 0.16 * ring as f32);
-                let steps = ((radius * SPAN * 2.0 / (stroke * 0.5)).ceil() as usize).clamp(6, 40);
-                for centre in [0.0_f32, std::f32::consts::PI] {
-                    for step in 0..=steps {
-                        let t = step as f32 / steps as f32 * 2.0 - 1.0;
-                        let angle = centre + t * SPAN;
-                        let x0 = cx + radius * angle.cos() - stroke * 0.5;
-                        let y0 = cy + radius * angle.sin() - stroke * 0.5;
-                        window.paint_quad(
-                            gpui::fill(
-                                Bounds::new(
-                                    gpui::point(px(x0), px(y0)),
-                                    size(px(stroke), px(stroke)),
-                                ),
-                                color,
-                            )
-                            .corner_radii(px(stroke * 0.5)),
-                        );
-                    }
-                }
-            }
-        },
-    )
-    .size(px(side))
+fn broadcast_mark(side: f32, color: Hsla) -> Icon {
+    Icon::new(Icon::empty())
+        .path(crate::gpui_shell::assets::nav::BROADCAST)
+        .size(px(side))
+        .text_color(color)
 }
 
 /// 一个 pane 的标题信息：图标（AI 品牌图 / Nerd Font 字位）+ 一行标题。
@@ -572,6 +561,7 @@ impl NebulaWorkspace {
             active: false,
             detach: false,
             target: None,
+            motion: PaneDragMotion::default(),
         });
         cx.notify();
     }
@@ -582,18 +572,17 @@ impl NebulaWorkspace {
         cx: &mut Context<Self>,
     ) {
         let Some(pane) = self.pane_drag.as_ref().map(|drag| drag.pane) else { return };
-        if event.pressed_button != Some(MouseButton::Left) {
-            self.pane_drag = None;
-            cx.notify();
-            return;
-        }
+        // Window capture supplies the real release; Windows non-client moves
+        // can omit the button while the grip remains held.
         let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
         if self.tab_of_pane(pane) != Some(self.active) {
             self.cancel_pane_drag(cx);
             return;
         }
         let outside = self.active_terminal_area().is_some_and(|area| !area.contains(x, y));
-        let target = self.pane_at(x, y).filter(|id| *id != pane);
+        let target = (!outside).then(|| self.pane_at(x, y)).flatten().filter(|id| *id != pane);
+        let now = cx.background_executor().now();
+        let instant = cx.reduce_motion() || crate::gpui_shell::config::tab_reveal_instant(cx);
         let Some(drag) = self.pane_drag.as_mut() else { return };
         drag.x = x;
         drag.y = y;
@@ -602,7 +591,13 @@ impl NebulaWorkspace {
         }
         if drag.active {
             drag.detach = outside;
-            drag.target = target;
+            if drag.target != target {
+                let bounds = self.pane_bounds.borrow();
+                let next = target
+                    .and_then(|id| Some((id, bounds.get(&pane)?.origin - bounds.get(&id)?.origin)));
+                drag.motion.change_target(drag.target, next, now, instant);
+                drag.target = target;
+            }
         }
         cx.notify();
     }
@@ -764,14 +759,14 @@ impl NebulaWorkspace {
         self.active = at;
         self.focus_active(window, cx);
         self.sync_side_panel_to_active(true, cx);
-        self.reveal_active_tab();
+        self.reveal_active_tab(cx);
         cx.notify();
     }
 
     /// 拖拽激活期间的全窗罩层（同 tab 拖拽的指针捕获模式）+ 跟着指针走的
     /// 意图提示。提示必须有：这个手势在界面上没有静态痕迹，不告诉用户「现在
     /// 松手会怎样」，拖出去就是一次赌博。
-    pub(super) fn pane_drag_overlay(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+    pub(super) fn pane_drag_overlay(&self, cx: &mut Context<Self>) -> Option<gpui::Deferred> {
         let drag = self
             .pane_drag
             .as_ref()
@@ -786,12 +781,8 @@ impl NebulaWorkspace {
             theme.muted_foreground
         };
         Some(
-            div()
-                .absolute()
-                .inset_0()
-                .occlude()
-                .cursor_grab()
-                .child(
+            gpui::deferred(
+                div().absolute().inset_0().occlude().cursor_grab().child(
                     div()
                         .absolute()
                         .left(px(x + 12.0))
@@ -809,8 +800,9 @@ impl NebulaWorkspace {
                         } else {
                             language.text(Message::WorkspacePaneExtractDragHint)
                         }),
-                )
-                .into_any_element(),
+                ),
+            )
+            .with_priority(3),
         )
     }
 }
@@ -820,13 +812,14 @@ pub(super) struct PaneDrag {
     pane: u64,
     press_x: f32,
     press_y: f32,
-    /// 当前指针位置：激活后的提示气泡跟着它走。
+    /// Current pointer position for the carried pane and its drop hint.
     x: f32,
     y: f32,
     active: bool,
     /// 此刻松手会不会摘出（提示气泡与提交共用同一份判定）。
     detach: bool,
     target: Option<u64>,
+    motion: PaneDragMotion,
 }
 
 /// 越过这个位移才算拖拽，之前都当点击（与 tab 拖拽同一个阈值）。
@@ -886,11 +879,12 @@ mod tests {
         for (width, height) in [(16.0, 12.8), (18.0, 14.4), (24.0, 19.2)] {
             let rects = split_icon_rects(&tree, width, height);
             assert_eq!(rects.len(), 3);
-            assert!(rects[0].x < rects[1].x);
-            assert_eq!(rects[1].x, rects[2].x);
-            assert!(rects[1].y < rects[2].y);
-            assert!(rects[0].h > rects[1].h);
-            for rect in rects {
+            assert_eq!([rects[0].0, rects[1].0, rects[2].0], [1, 2, 3]);
+            assert!(rects[0].1.x < rects[1].1.x);
+            assert_eq!(rects[1].1.x, rects[2].1.x);
+            assert!(rects[1].1.y < rects[2].1.y);
+            assert!(rects[0].1.h > rects[1].1.h);
+            for (_, rect) in rects {
                 assert!(rect.x >= 0.0 && rect.y >= 0.0 && rect.w > 0.0 && rect.h > 0.0);
                 assert!(rect.x + rect.w <= width && rect.y + rect.h <= height);
             }

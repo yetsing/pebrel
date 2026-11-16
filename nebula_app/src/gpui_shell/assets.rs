@@ -49,6 +49,10 @@ const NEBULA_ICONS: &[(&str, &[u8])] = icons![
     "spinner-arc",
     "spinner-track",
     "waiting-hand",
+    "tab-grouping",
+    "sidebar-expanded",
+    "sidebar-right-expanded",
+    "broadcast",
     "phone",
     "puzzle",
     "vcs-changes",
@@ -130,6 +134,10 @@ impl AssetSource for NebulaAssets {
 /// 自带图标的路径。走路径而不是 `IconName`：扩展那个枚举等于改 fork。
 pub mod nav {
     pub const TERMINAL: &str = "icons/nebula-terminal.svg";
+    pub const TAB_GROUPING: &str = "icons/nebula-tab-grouping.svg";
+    pub const SIDEBAR_EXPANDED: &str = "icons/nebula-sidebar-expanded.svg";
+    pub const SIDEBAR_RIGHT_EXPANDED: &str = "icons/nebula-sidebar-right-expanded.svg";
+    pub const BROADCAST: &str = "icons/nebula-broadcast.svg";
     pub const AGENT_CLAUDE: &str = "icons/agent-claude.svg";
     pub const AGENT_KIMI: &str = "icons/agent-kimi.svg";
     pub const AGENT_OMP: &str = "icons/agent-omp.svg";

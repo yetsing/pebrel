@@ -31,6 +31,7 @@ pub mod color;
 mod damage;
 mod grid_content;
 mod inline_image;
+mod sixel;
 pub(crate) use inline_image::PendingImage;
 mod input;
 mod keyboard;
@@ -106,6 +107,8 @@ bitflags! {
         /// 用 OSC 11 问到的背景色上——用户把深色主题切成浅色，nvim/delta/codex
         /// 会继续用为深底挑的颜色画在白底上。
         const COLOR_SCHEME_UPDATES    = 1 << 24;
+        const SIXEL_DISPLAY           = 1 << 25;
+        const SIXEL_CURSOR_RIGHT      = 1 << 26;
         const MOUSE_MODE              = Self::MOUSE_REPORT_CLICK.bits() | Self::MOUSE_MOTION.bits() | Self::MOUSE_DRAG.bits();
         const KITTY_KEYBOARD_PROTOCOL = Self::DISAMBIGUATE_ESC_CODES.bits()
                                       | Self::REPORT_EVENT_TYPES.bits()
@@ -288,11 +291,6 @@ pub struct Config {
     /// OSC52 support mode.
     pub osc52: Osc52,
 
-    /// Swallow the terminal's answer to the FIRST primary-DA query: set for
-    /// side-loaded ConPTY sessions whose bring-up handshake was pre-primed
-    /// (the host already got its answer before it spawned).
-    pub suppress_bringup_da1: bool,
-
     /// Use ConPTY's primary-screen row anchoring during resize.
     ///
     /// ConPTY keeps painting absolute cursor coordinates after silently
@@ -311,7 +309,6 @@ impl Default for Config {
             vi_mode_cursor_style: Default::default(),
             kitty_keyboard: Default::default(),
             osc52: Default::default(),
-            suppress_bringup_da1: false,
             conpty_resize: false,
         }
     }
@@ -409,7 +406,7 @@ impl<T> Term<T> {
             scroll_region,
             event_proxy,
             damage,
-            bringup_da1_pending: config.suppress_bringup_da1,
+            bringup_da1_pending: false,
             // 默认按暗底起步：Nebula 的默认主题是深色，宿主在首次
             // `set_color_scheme` 前不会有订阅方，值不会被读到。
             color_scheme_dark: true,
@@ -540,6 +537,10 @@ impl<T> Term<T> {
         }
         let value = if self.color_scheme_dark { 1 } else { 2 };
         self.event_proxy.send_event(Event::PtyWrite(format!("\x1b[?997;{value}n")));
+    }
+
+    pub(crate) fn suppress_primed_da1(&mut self) {
+        self.bringup_da1_pending = true;
     }
 
     /// Set new options for the [`Term`].
@@ -1328,27 +1329,7 @@ impl<T: EventListener> Handler for Term<T> {
 
     #[inline]
     fn identify_terminal(&mut self, intermediate: Option<char>) {
-        match intermediate {
-            None => {
-                // The pre-primed ConPTY bring-up query was already answered;
-                // a second answer would reach the shell as typed input.
-                if self.bringup_da1_pending {
-                    self.bringup_da1_pending = false;
-                    trace!("Suppressing duplicate DA1 response (pre-primed ConPTY handshake)");
-                    return;
-                }
-                trace!("Reporting primary device attributes");
-                let text = String::from("\x1b[?6c");
-                self.event_proxy.send_event(Event::PtyWrite(text));
-            },
-            Some('>') => {
-                trace!("Reporting secondary device attributes");
-                let version = version_number(env!("CARGO_PKG_VERSION"));
-                let text = format!("\x1b[>0;{version};1c");
-                self.event_proxy.send_event(Event::PtyWrite(text));
-            },
-            _ => debug!("Unsupported device attributes intermediate"),
-        }
+        self.report_device_attributes(intermediate);
     }
 
     #[inline]
@@ -1974,6 +1955,9 @@ impl<T: EventListener> Handler for Term<T> {
 
     #[inline]
     fn set_private_mode(&mut self, mode: PrivateMode) {
+        if self.set_graphics_mode(mode, true) {
+            return;
+        }
         if matches!(mode, PrivateMode::Unknown(9001)) {
             self.mode.insert(TermMode::WIN32_INPUT_MODE);
             return;
@@ -2027,6 +2011,9 @@ impl<T: EventListener> Handler for Term<T> {
 
     #[inline]
     fn unset_private_mode(&mut self, mode: PrivateMode) {
+        if self.set_graphics_mode(mode, false) {
+            return;
+        }
         if matches!(mode, PrivateMode::Unknown(9001)) {
             self.mode.remove(TermMode::WIN32_INPUT_MODE);
             return;
@@ -2074,6 +2061,9 @@ impl<T: EventListener> Handler for Term<T> {
 
     #[inline]
     fn report_private_mode(&mut self, mode: PrivateMode) {
+        if self.report_graphics_mode(mode) {
+            return;
+        }
         trace!("Reporting private mode {mode:?}");
         if matches!(mode, PrivateMode::Unknown(9001)) {
             let state = if self.mode.contains(TermMode::WIN32_INPUT_MODE) { 1 } else { 2 };

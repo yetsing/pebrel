@@ -5,7 +5,7 @@ use super::*;
 /// 标签元数据：用户名字、色标沿用 session v4；运行时身份只随活体标签移动，
 /// 不写入 session，避免重启后的请求命中新标签。
 /// 与 `tabs` **同下标**。长度必须一致，所以增删移三种结构性改动只允许走
-/// `insert_tab_at` / `remove_tab_at` / `move_tab`——别处直接 `self.tabs.push`
+/// `insert_tab_at` / `remove_tab_at` / `move_tab` / `reorder_tabs`——别处直接 `self.tabs.push`
 /// 会让色条和名字错位到邻居身上。
 #[derive(Clone, Debug, Default)]
 pub(super) struct TabMeta {
@@ -24,6 +24,9 @@ pub(super) struct TabMeta {
     pub(super) launch: Option<crate::session::LaunchSession>,
     /// 后台 tab 响过 BEL（旧壳 `has_bell`）。激活即清。
     pub(super) has_bell: bool,
+    pub(super) sidebar_created: Option<std::time::Instant>,
+    pub(super) sidebar_selected: Option<std::time::Instant>,
+    pub(super) sidebar_divider: bool,
 }
 
 /// 两种 tab 布局共用的只读展示数据。状态与动作仍由 `NebulaWorkspace`
@@ -31,11 +34,8 @@ pub(super) struct TabMeta {
 pub(super) struct TabPresentation {
     pub(super) title: SharedString,
     pub(super) tooltip: Option<SharedString>,
-    pub(super) is_settings: bool,
     pub(super) activity: SidebarActivity,
-    pub(super) logo_image: Option<Arc<RenderImage>>,
-    pub(super) logo_pending: bool,
-    pub(super) program_glyph: Option<&'static str>,
+    pub(super) icon: TabIcon,
     pub(super) shell_tag: Option<SharedString>,
     pub(super) color: Option<Rgb>,
     pub(super) renaming: Option<Entity<InputState>>,
@@ -43,6 +43,98 @@ pub(super) struct TabPresentation {
     /// 见 [`pane_header::split_layout_icon`]。
     pub(super) pane_count: usize,
     pub(super) local_administrator: bool,
+}
+
+pub(super) enum TabIcon {
+    Symbol(IconName),
+    Glyph(char),
+    Agent(Arc<RenderImage>),
+    Shell(crate::shell_detect::ShellArtwork),
+    Host(&'static crate::display::ui::os_icons::OsIcon),
+}
+
+impl TabIcon {
+    fn terminal() -> Self {
+        Self::Symbol(IconName::SquareTerminal)
+    }
+
+    fn glyph(text: &str) -> Self {
+        text.chars().next().map_or_else(Self::terminal, Self::Glyph)
+    }
+
+    pub(super) fn leading_slot(
+        self,
+        id: SharedString,
+        ink: gpui::Hsla,
+        hover: Option<(SharedString, gpui::Hsla)>,
+    ) -> impl IntoElement {
+        TabIconSlot { icon: self, id, ink, hover }
+    }
+}
+
+#[derive(gpui::IntoElement)]
+struct TabIconSlot {
+    icon: TabIcon,
+    id: SharedString,
+    ink: gpui::Hsla,
+    hover: Option<(SharedString, gpui::Hsla)>,
+}
+
+impl gpui::RenderOnce for TabIconSlot {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        use crate::gpui_shell::widgets::{host_icon, identity_icon};
+
+        let Self { icon, id, ink, hover } = self;
+        let size = px(TAB_LABEL_ICON_SIZE);
+        let symbol = |name| Icon::new(name).size(size).text_color(ink).into_any_element();
+        let content = match icon {
+            TabIcon::Symbol(name) => symbol(name),
+            TabIcon::Glyph(glyph) => div()
+                .text_color(ink)
+                .when_some(hover.clone(), |glyph, (group, color)| {
+                    glyph.group_hover(group, |style| style.text_color(color))
+                })
+                .child(identity_icon(None, glyph, TAB_LABEL_ICON_SIZE, None))
+                .into_any_element(),
+            TabIcon::Agent(image) => div()
+                .relative()
+                .size(size)
+                .child(img(image.clone()).size_full().when_some(
+                    hover.as_ref(),
+                    |image, (group, _)| {
+                        image
+                            .grayscale(true)
+                            .opacity(0.85)
+                            .group_hover(group.clone(), |style| style.invisible())
+                    },
+                ))
+                .when_some(hover, |slot, (group, _)| {
+                    slot.child(
+                        img(image)
+                            .absolute()
+                            .inset_0()
+                            .size_full()
+                            .invisible()
+                            .group_hover(group, |style| style.visible()),
+                    )
+                })
+                .into_any_element(),
+            TabIcon::Shell(artwork) => {
+                identity_icon(Some(artwork), '\u{ea85}', TAB_LABEL_ICON_SIZE, Some(ink))
+                    .into_any_element()
+            },
+            TabIcon::Host(host) => host_icon(host, TAB_LABEL_ICON_SIZE, ink).into_any_element(),
+        };
+        div()
+            .debug_selector(move || id.to_string())
+            .w(px(TAB_LABEL_ICON_W))
+            .h(size)
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(content)
+    }
 }
 
 impl NebulaWorkspace {
@@ -78,56 +170,37 @@ impl NebulaWorkspace {
     pub(super) fn tab_presentation(&self, ix: usize, cx: &App, dark: bool) -> TabPresentation {
         let active = ix == self.active;
         let title = self.tab_title(ix, cx);
-        let is_settings = self.tabs[ix].is_settings();
-        let is_terminal = self.tabs[ix].is_terminal();
+        let tab = &self.tabs[ix];
+        let view = tab.focused_view().map(|entity| entity.read(cx));
         let local_administrator = crate::platform::elevation::is_elevated().unwrap_or(false)
-            && self.tabs[ix]
-                .focused_view()
-                .is_some_and(|view| view.read(cx).inherits_windows_host_token());
-        let pane_count = match &self.tabs[ix] {
+            && view.is_some_and(TerminalView::inherits_windows_host_token);
+        let pane_count = match tab {
             WorkspaceTab::Terminal { panes, .. } => panes.len(),
             _ => 0,
         };
-        let (program, activity) = self.tabs[ix]
-            .focused_view()
-            .map(|entity| {
-                let view = entity.read(cx);
-                let program = view
-                    .running_program
-                    .clone()
-                    .or_else(|| view.ai_session.as_ref().map(|identity| identity.source.clone()))
-                    .or_else(|| view.ssh_destination.as_ref().map(|_| "ssh".to_owned()));
-                (program, view.sidebar_activity())
-            })
-            .unwrap_or((None, SidebarActivity::Idle));
         // 事件 vs 状态的唯一裁定处（侧栏与顶栏共用这份 presentation），规则与
         // 理由见 [`sidebar::resting_activity`]。
-        let activity = sidebar::resting_activity(activity, active, self.meta(ix).has_bell);
-        let brand_logo = program.as_deref().and_then(crate::display::ai_logo_for_program);
-        let logo_image =
-            brand_logo.and_then(|logo| self.sidebar_logo_images.get(&(logo, dark)).cloned());
-        let logo_pending = brand_logo.is_some() && logo_image.is_none();
-        let program_glyph = program
-            .as_deref()
-            .filter(|_| logo_image.is_none())
-            .map(crate::display::program_icon)
-            .or_else(|| match &self.tabs[ix] {
-                WorkspaceTab::Document { .. } => Some("\u{eb1d}"),
-                WorkspaceTab::Code { view, .. } => {
-                    Some(crate::display::side_panel::file_type_icon(&view.read(cx).title))
-                },
-                WorkspaceTab::Image { view } => {
-                    Some(crate::display::side_panel::file_type_icon(&view.read(cx).title))
-                },
-                _ => None,
-            });
         let meta = self.meta(ix);
-        // 分屏 tab 不画 shell 短标：一个 tab 里的 N 个 pane 完全可能跑着不同
-        // 的 shell，只贴其中一个（聚焦那个）是误导；数量胶囊「这是一组」才是
-        // 此时该占这个槽位的信息。顺带把 28px 让回标题——顶栏挤到 120px 时，
-        // 图标+胶囊+短标三样一起上，标题只剩两三个字符。
-        let shell_tag = (is_terminal && activity == SidebarActivity::Idle && pane_count <= 1)
-            .then_some(meta.shell_tag.clone())
+        let activity = sidebar::resting_activity(
+            view.map_or(SidebarActivity::Idle, TerminalView::sidebar_activity),
+            active,
+            meta.has_bell,
+        );
+        let icon = match tab {
+            WorkspaceTab::Settings { .. } => TabIcon::Symbol(IconName::Settings),
+            WorkspaceTab::Document { .. } => TabIcon::Glyph('\u{eb1d}'),
+            WorkspaceTab::Code { view, .. } => {
+                TabIcon::glyph(crate::display::side_panel::file_type_icon(&view.read(cx).title))
+            },
+            WorkspaceTab::Image { view } => {
+                TabIcon::glyph(crate::display::side_panel::file_type_icon(&view.read(cx).title))
+            },
+            WorkspaceTab::Terminal { .. } => self.terminal_tab_icon(view, dark),
+        };
+        // The leading icon follows the focused pane. On split tabs, leave the
+        // trailing space for the layout miniature and title.
+        let shell_tag = (tab.is_terminal() && activity == SidebarActivity::Idle && pane_count <= 1)
+            .then_some(meta.shell_tag)
             .flatten()
             .filter(|tag| !tag.is_empty());
         let renaming = self
@@ -135,22 +208,53 @@ impl NebulaWorkspace {
             .as_ref()
             .filter(|rename| rename.ix == ix)
             .map(|rename| rename.input.clone());
-        let tooltip =
-            self.tabs[ix].focused_view().map(|view| view.read(cx).tab_tooltip(&title).into());
+        let tooltip = view.map(|view| view.tab_tooltip(&title).into());
         TabPresentation {
             title,
             tooltip,
-            is_settings,
             activity,
-            logo_image,
-            logo_pending,
-            program_glyph,
+            icon,
             shell_tag,
             color: meta.color,
             renaming,
             pane_count,
             local_administrator,
         }
+    }
+
+    fn terminal_tab_icon(&self, view: Option<&TerminalView>, dark: bool) -> TabIcon {
+        if let Some(view) = view {
+            let program = view
+                .running_program
+                .as_deref()
+                .or_else(|| view.ai_session.as_ref().map(|identity| identity.source.as_str()));
+            if let Some(image) = program
+                .and_then(crate::display::ai_logo_for_program)
+                .and_then(|logo| self.sidebar_logo_images.get(&(logo, dark)))
+            {
+                return TabIcon::Agent(image.clone());
+            }
+            if let Some(host) = view.ssh_host_icon() {
+                return if host.id == crate::display::ui::os_icons::DEFAULT_ID {
+                    TabIcon::Symbol(IconName::Network)
+                } else {
+                    TabIcon::Host(host)
+                };
+            }
+            if let Some(glyph) = program
+                .filter(|name| !matches!(*name, "ssh" | "mosh"))
+                .and_then(crate::display::recognized_program_icon)
+                .and_then(|glyph| glyph.chars().next())
+            {
+                return TabIcon::Glyph(glyph);
+            }
+        }
+        if view.is_some_and(|view| {
+            matches!(view.session_launch, crate::session::LaunchSession::Serial { .. })
+        }) {
+            return TabIcon::Symbol(IconName::Network);
+        }
+        view.and_then(|view| view.shell_artwork).map_or_else(TabIcon::terminal, TabIcon::Shell)
     }
 }
 

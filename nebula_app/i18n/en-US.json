@@ -26,6 +26,7 @@
     "fold_collapse": "Collapse the middle {count} lines",
     "view": "View",
     "raw": "Raw",
+    "no_output": "No output",
     "copy": "Copy source",
     "copied": "Copied",
     "filter": "Filter rows…",
@@ -550,7 +551,8 @@
       "choose_folder": "Choose a plugin folder containing plugin.toml",
       "refresh": "Refresh",
       "loading": "Loading installed plugins…",
-      "empty": "No plugins installed. Choose a plugin folder to install one.",
+      "empty": "No extensions installed",
+      "empty_hint": "Choose a folder containing plugin.toml to install an extension.",
       "failed": "Plugin operation failed: {error}",
       "installed": "Installed {name}.",
       "themes_added": "{count} of {total} bundled themes are in your theme library.",
@@ -690,6 +692,16 @@
       "aiapi_headline": "Special thanks to AIAPI for sponsoring this project!",
       "aiapi_description": "AIAPI is dedicated to building the most stable AI model relay on the web, providing a unified API for solo developers, tech teams, and enterprises. We deliver full-power, unthrottled Claude and GPT models—zero lobotomization, zero dilution, and 100% pure native performance. Backed by dynamic multi-route scheduling for high availability, complete transparency in latency and billing, and top-tier after-sales support that always has your back, AIAPI cuts API costs by 40%–98% compared to official rates.",
       "visit": "Visit and sign up"
+    },
+    "nav": {
+      "workspace": "Workspace",
+      "connections": "Connections",
+      "system": "System",
+      "startup": "Startup",
+      "alerts": "Alerts",
+      "completion": "Completion",
+      "mouse_selection": "Mouse and selection",
+      "tabs_windows": "Tabs and windows"
     }
   },
   "provider": {
@@ -980,6 +992,7 @@
     "back_to_root": "Back to all commands",
     "group_count": "{count} commands",
     "add_group": "New group",
+    "rename_group": "Rename group",
     "group_name": "Group name",
     "builtin_group": "Built-in commands",
     "ungrouped": "Ungrouped",
@@ -1477,6 +1490,9 @@
     "managed_unknown": "The installation source could not be identified. Update through the source you originally used; the standalone installer is disabled for this copy.",
     "downloading_hint": "Downloading and verifying the update package for this device.",
     "no_verified_package": "This release has no verified update package for this device. Open the Releases page to download it manually.",
+    "download_zip": "Download ZIP",
+    "portable_hint": "Portable copies update manually. Download the ZIP, quit Pebrel, then extract it into a new folder.",
+    "portable_missing_zip": "Portable copies update manually. Open Releases to look for the ZIP that matches this device.",
     "check_fallback_failed": "GitHub API access is restricted (HTTP {status}), and the official Releases page could not be reached: {error}. Retry later or open the Releases page.",
     "check_unrecognized_release": "The official Releases page did not identify a supported stable version. Retry later or open the Releases page.",
     "installation_failed": "Update installation failed",
@@ -1620,6 +1636,29 @@
     "tab_color": "Tab color"
   },
   "chrome": {
+    "tab_grouping": {
+      "label": "Group tabs",
+      "section": "GROUP",
+      "none": "No grouping",
+      "project": "By project",
+      "shell": "By shell",
+      "agents": "Agents",
+      "terminal": "Terminals",
+      "files": "Files",
+      "order_section": "ORDER",
+      "order_created": "Created",
+      "order_recent": "Recently active",
+      "order_manual": "Manual",
+      "order_default": "default",
+      "divider_insert": "Insert divider",
+      "divider_remove": "Remove divider",
+      "divider_below": "below active",
+      "divider_ungrouped": "no grouping only",
+      "divider_label": "Section",
+      "group_modifier": "Alt + click",
+      "collapse_all": "Collapse all groups",
+      "expand_all": "Expand all groups"
+    },
     "local_administrator": "Local Pebrel process is running as Windows administrator",
     "new_terminal_ctrl_shift_t": "New terminal (Ctrl+Shift+T)",
     "more": "More",
@@ -1664,7 +1703,8 @@
       "running_window_process": "{process} is still running. Closing the window will stop it."
     },
     "close_window": {
-      "title": "Close window?"
+      "title": "End the session and close?",
+      "force": "Force close"
     },
     "close_pane": {
       "title": "Close this pane?"
@@ -1703,6 +1743,11 @@
     "clear_selection": "Clear selection (Esc)"
   },
   "backup_flow": {
+    "storage_node": "Backup storage node",
+    "storage_off": "No storage configured",
+    "storage_off_hint": "Configure a server or folder, or export a local archive below.",
+    "configure_node": "Configure storage",
+    "local_archive": "Password and local archives",
     "password_notice": "Pebrel keeps this password in memory only for the current run and never writes it to disk. You will be asked again for the first backup after restarting. If you forget it, existing backups cannot be unlocked.",
     "connect_provider": "Connect {provider}",
     "address_label": "Address",
@@ -1936,14 +1981,17 @@
       "skipped": "{count} listings could not be read and are hidden.",
       "retry": "Retry",
       "install": "Install",
-      "installing": "Installing…",
+      "installing": "Verifying and installing…",
+      "downloading": "Downloading {percent}%",
+      "preview_loading": "Loading preview…",
+      "previewing": "Previewing",
       "installed": "Installed",
       "select": "Preview",
       "install_version": "Install {version}",
       "author": "by {author}",
       "download_size": "{size} download",
       "no_preview": "No preview",
-      "notice": "From the pebrel-community/themes catalog. Downloads are checked against the catalog's SHA-256 and added to your library without being applied.",
+      "notice": "Themes from pebrel-community/themes. Install to preview, then choose Use this theme.",
       "added": "{name} was added to your library. Preview it here, then choose Use this theme.",
       "install_failed": "Could not install {name}: {error}",
       "error": {

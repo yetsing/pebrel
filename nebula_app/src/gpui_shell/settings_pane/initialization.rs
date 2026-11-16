@@ -272,11 +272,7 @@ impl SettingsPane {
 
         // 与旧壳的默认 Shell 菜单共用检测层：不能在设置页另维护一份两项
         // 白名单，否则 CMD/Nushell/WSL 会出现在新建终端菜单，却无法设为默认。
-        // 选项 = 彩色品牌 PNG（extra/shell-icons，与旧壳设置页/命令面板同
-        // 一批资产）+ 名称，闭态与下拉同源（SelectItem::display_title/render）。
-        let shell_icon_scale = window.scale_factor().max(0.5);
-        let (shell_items, shell_index) =
-            shell_select_items(&shell_current, shell_icon_scale, language);
+        let (shell_items, shell_index) = shell_select_items(&shell_current, language);
         let shell_select = cx.new(|cx| {
             SelectState::new(shell_items, Some(IndexPath::default().row(shell_index)), window, cx)
         });
@@ -673,6 +669,8 @@ impl SettingsPane {
             runtime,
             launch_at_login: crate::platform::startup::launch_at_login(),
             active_section: 1,
+            active_nav_child: None,
+            nav_scroll: gpui::ScrollHandle::new(),
             agents: agents::AgentSettingsState::new(cx),
             mobile: mobile::MobileState::new(window, cx),
             plugins: plugins::PluginsState::new(),
@@ -731,6 +729,7 @@ impl SettingsPane {
             provider_codex_confirm: None,
             ssh_library,
             ssh_hosts: crate::gpui_shell::ssh_hosts::SshHostLists::load(),
+            ssh_icon_refresh: None,
             ssh_username_input,
             ssh_destination_input,
             ssh_port_input,

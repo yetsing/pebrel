@@ -80,11 +80,11 @@ For business cooperation or sponsorship, contact: [fickleheartedkeys@163.com](ma
 </p>
 
 <p align="center">
-  <a href="extra/community/wechat-group-2026-11-11.jpg"><img src="extra/community/wechat-group-2026-11-11.jpg" alt="QR code for the Pebrel WeChat group, valid before November 11, 2026" width="300" /></a>
+  <a href="extra/community/wechat-group-2026-11-13.png"><img src="extra/community/wechat-group-2026-11-13.png" alt="QR code for the Pebrel WeChat group" width="300" /></a>
 </p>
 
 <p align="center">
-  Scan with WeChat to join. Valid before November 11, 2026. Click the image to view full size.
+  Scan with WeChat to join. Click the image to view full size.
 </p>
 
 ## One Workspace
@@ -208,8 +208,9 @@ discover candidates from the current environment without matching prior commands
   selected language; Copy source preserves the complete original answer. See
   [reader language behavior](docs/answer-reader-language.md).
 - Clipboard images are saved as PNG files and their paths inserted into local,
-  WSL, or SSH sessions. Inline terminal images require the CLI to emit the supported
-  OSC 1337 protocol; image attachment previews depend on the CLI itself.
+  WSL, or SSH sessions. Inline terminal images require CLI output using OSC 1337,
+  direct RGB/RGBA over APC, or Sixel (7-bit DCS); image attachment previews
+  depend on the CLI itself.
 
 <p align="center">
   <img src="docs/screenshots/ai-sidebar.png" alt="AI activity sidebar" width="300" />

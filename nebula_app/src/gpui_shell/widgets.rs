@@ -14,12 +14,15 @@ use std::sync::Arc;
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    App, ClickEvent, ElementId, InteractiveElement as _, IntoElement, ParentElement as _,
+    App, ClickEvent, ElementId, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
     RenderImage, RenderOnce, SharedString, Styled as _, Window, div, px,
 };
 use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants as _};
 use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Sizable as _};
 use image::Frame;
+
+use crate::display::program_identity::{identity_icon_scale, render_shell_artwork};
+use crate::shell_detect::ShellArtwork;
 
 /// Text and image readers present the same in-flight byte counts.
 pub(super) fn file_read_progress(
@@ -48,50 +51,190 @@ pub(super) fn file_read_progress(
     )
 }
 
-/// Shell 的彩色品牌图标（`extra/shell-icons` 的 PNG）预缩放成与物理像素
-/// 一一对应的纹理。设置页的默认 Shell 下拉与新建终端的 Shell 选择弹窗
-/// 共用同一份资产和同一条缩放路径——把 128px 原图交给 GPUI 每帧缩小会糊
-/// 边，两处各写一遍缩放又迟早缩出两种观感。
-///
-/// `logical_size` 是控件里图标的逻辑边长，`scale_factor` 是窗口 DPI 缩放。
-/// 返回 `None` 表示该 id 没有品牌资产，调用方保留自己的字形回落。
-pub fn shell_brand_image(
-    id: &str,
-    logical_size: f32,
-    scale_factor: f32,
-) -> Option<Arc<RenderImage>> {
-    let bytes = crate::shell_detect::color_icon_png(id)?;
-    let source = image::load_from_memory(bytes).ok()?.into_rgba8();
-    let (width, height) = source.dimensions();
-    let target_size = (logical_size * scale_factor).round().max(1.0) as u32;
-    let (mut rgba, width, height) =
-        crate::display::prepare_ai_logo_texture(source.as_raw(), width, height, target_size);
-    // GPUI RenderImage 使用 BGRA；预缩放必须在 RGBA 上完成，换序放在最后，
-    // 否则 Lanczos 会把红蓝通道按错误语义混合。
-    for pixel in rgba.chunks_exact_mut(4) {
-        pixel.swap(0, 2);
-    }
-    let rgba = image::RgbaImage::from_raw(width, height, rgba)?;
-    Some(Arc::new(RenderImage::new([Frame::new(rgba)])))
+#[derive(Clone)]
+struct IdentityTextureSource {
+    artwork: ShellArtwork,
+    side: u32,
+    ink: [u8; 3],
 }
 
-/// The generic terminal uses one rounded vector in SSH cards, pickers and tabs.
-/// Other program and OS glyphs retain their existing font and layout.
-pub(crate) fn terminal_glyph(glyph: impl Into<SharedString>, size: f32) -> gpui::AnyElement {
-    let glyph = glyph.into();
-    if glyph.as_ref() == "\u{f489}" {
-        Icon::new(Icon::empty())
-            .path(super::assets::nav::TERMINAL)
-            .size(px(size))
-            .into_any_element()
-    } else {
-        glyph.into_any_element()
+impl std::hash::Hash for IdentityTextureSource {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // The compressed sources are immutable. Hash the asset identity, not its contents.
+        state.write_usize(self.artwork.svg().as_ptr() as usize);
+        state.write_usize(self.artwork.svg().len());
+        state.write_u32(self.side);
+        state.write_u8(u8::from(matches!(self.artwork, ShellArtwork::Color(_))));
+        state.write(&self.ink);
     }
+}
+
+struct IdentityTexture;
+
+impl gpui::Asset for IdentityTexture {
+    type Source = IdentityTextureSource;
+    type Output = Option<Arc<RenderImage>>;
+
+    fn load(
+        source: Self::Source,
+        _: &mut App,
+    ) -> impl std::future::Future<Output = Self::Output> + Send + 'static {
+        async move {
+            let (mut rgba, width, height) =
+                render_shell_artwork(source.artwork, source.ink, source.side)?;
+            // GPUI RenderImage stores BGRA.
+            for pixel in rgba.chunks_exact_mut(4) {
+                pixel.swap(0, 2);
+            }
+            let rgba = image::RgbaImage::from_raw(width, height, rgba)?;
+            Some(Arc::new(RenderImage::new([Frame::new(rgba)])))
+        }
+    }
+}
+
+#[derive(IntoElement)]
+pub(crate) struct IdentityIcon {
+    artwork: Option<ShellArtwork>,
+    glyph: char,
+    side: f32,
+    color: Option<gpui::Hsla>,
+}
+
+pub(crate) fn identity_icon(
+    artwork: Option<ShellArtwork>,
+    glyph: char,
+    side: f32,
+    color: Option<gpui::Hsla>,
+) -> IdentityIcon {
+    IdentityIcon { artwork, glyph, side, color }
+}
+
+impl RenderOnce for IdentityIcon {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let color = self.color.unwrap_or_else(|| window.text_style().color);
+        if let Some(artwork) = self.artwork {
+            let ink = match artwork {
+                ShellArtwork::Color(_) => [0; 3],
+                ShellArtwork::Monochrome(_) => {
+                    let rgb: gpui::Rgba = color.into();
+                    [rgb.r, rgb.g, rgb.b].map(|channel| (channel * 255.0).round() as u8)
+                },
+            };
+            let side = (self.side * window.scale_factor()).round().clamp(1.0, 512.0) as u32;
+            if let Some(image) = window
+                .use_asset::<IdentityTexture>(&IdentityTextureSource { artwork, side, ink }, cx)
+                .flatten()
+            {
+                return gpui::img(image)
+                    .size(px(self.side))
+                    .flex_shrink_0()
+                    .opacity(if matches!(artwork, ShellArtwork::Color(_)) { 1.0 } else { color.a })
+                    .into_any_element();
+            }
+        }
+        centered_glyph(self.glyph, self.side, color)
+    }
+}
+
+pub(crate) fn host_icon(
+    icon: &crate::display::ui::os_icons::OsIcon,
+    side: f32,
+    color: gpui::Hsla,
+) -> IdentityIcon {
+    identity_icon(crate::shell_detect::linux_artwork(icon.id), icon.glyph, side, Some(color))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ShellIcon {
+    artwork: Option<ShellArtwork>,
+    glyph: char,
+}
+
+impl ShellIcon {
+    pub(super) fn new(id: &str) -> Self {
+        Self {
+            artwork: crate::shell_detect::shell_artwork(id),
+            glyph: crate::shell_detect::icon_for_id(id).chars().next().unwrap_or('\u{ea85}'),
+        }
+    }
+
+    pub(super) fn element(self, side: f32, color: Option<gpui::Hsla>) -> IdentityIcon {
+        identity_icon(self.artwork, self.glyph, side, color)
+    }
+}
+
+/// Read the vector outline: some platform text systems return advance metrics
+/// for typographic bounds, which include the blank space around the glyph.
+fn host_symbol_geometry(glyph: char, side: f32) -> Option<(Pixels, gpui::Point<Pixels>)> {
+    static SYMBOLS: std::sync::OnceLock<Option<ttf_parser::Face<'static>>> =
+        std::sync::OnceLock::new();
+    let face = SYMBOLS
+        .get_or_init(|| ttf_parser::Face::parse(crate::font_install::SYMBOL_FONT_BYTES, 0).ok())
+        .as_ref()?;
+    let bounds = face.glyph_bounding_box(face.glyph_index(glyph)?)?;
+    let x0 = f32::from(bounds.x_min);
+    let x1 = f32::from(bounds.x_max);
+    let y0 = f32::from(bounds.y_min);
+    let y1 = f32::from(bounds.y_max);
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
+    let scale = side * identity_icon_scale(x1 - x0, y1 - y0);
+    // Font outline coordinates are relative to the baseline with positive Y upwards.
+    let center = gpui::point(px((x0 + x1) * 0.5 * scale), px(-(y0 + y1) * 0.5 * scale));
+    Some((px(f32::from(face.units_per_em()) * scale), center))
+}
+
+/// Center the glyph's ink, not its monospace advance or the surrounding text line.
+fn centered_glyph(glyph: char, side: f32, color: gpui::Hsla) -> gpui::AnyElement {
+    let geometry = if matches!(glyph, '\u{f489}' | '\u{ea85}') {
+        None
+    } else {
+        host_symbol_geometry(glyph, side)
+    };
+    let Some((font_size, ink_center)) = geometry else {
+        return Icon::new(Icon::empty())
+            .path(crate::gpui_shell::assets::nav::TERMINAL)
+            .size(px(side))
+            .text_color(color)
+            .into_any_element();
+    };
+    gpui::canvas(
+        move |bounds, window, _| {
+            let text: SharedString = glyph.to_string().into();
+            let line = window.text_system().shape_line(
+                text.clone(),
+                font_size,
+                &[gpui::TextRun {
+                    len: text.len(),
+                    font: gpui::font(crate::font_install::SYMBOL_FONT_FAMILY),
+                    color,
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                }],
+                None,
+            );
+            let height = line.ascent + line.descent;
+            let origin = bounds.center() - ink_center - gpui::point(px(0.0), line.ascent);
+            (line, origin, height)
+        },
+        |_, (line, origin, height), window, cx| {
+            if let Err(error) = line.paint(origin, height, gpui::TextAlign::Left, None, window, cx)
+            {
+                log::warn!("Unable to paint terminal identity icon: {error}");
+            }
+        },
+    )
+    .size(px(side))
+    .into_any_element()
 }
 
 /// Desktop form controls keep their padding even with a small UI font.
+pub(crate) const SETTINGS_HIT_SIZE: f32 = 44.0;
+
 pub(crate) fn settings_control_height(cx: &App) -> gpui::Pixels {
-    px(f32::from(cx.theme().font_size).max(16.0) * 2.0)
+    (cx.theme().font_size * 2.0).max(px(SETTINGS_HIT_SIZE))
 }
 
 /// Transparent settings action with a restrained, neutral interaction wash.
@@ -117,7 +260,12 @@ pub(crate) fn settings_button(button: Button, outlined: bool, cx: &App) -> Butto
 
 /// Icon-only actions keep a square hit area without text-button side padding.
 pub(crate) fn settings_icon_button(button: Button, cx: &App) -> Button {
-    settings_button(button, false, cx).w(px(32.0)).h(px(32.0)).px_0()
+    settings_button(button, false, cx).w(px(SETTINGS_HIT_SIZE)).px_0()
+}
+
+/// A compact select keeps room for the text when the UI font grows.
+pub(crate) fn settings_select_height(cx: &App) -> gpui::Pixels {
+    (cx.theme().font_size + px(12.0)).max(px(30.0))
 }
 
 /// The select keeps its native popup and keyboard handling; this frame supplies
@@ -131,8 +279,8 @@ pub(crate) fn settings_select_frame(
     let edge = cx.theme().muted_foreground.opacity(0.65);
     div()
         .id(id)
-        .h(settings_control_height(cx))
-        .rounded(px(6.0))
+        .h(settings_select_height(cx))
+        .rounded(px(8.0))
         .border_1()
         .border_color(cx.theme().border)
         .text_color(cx.theme().foreground)

@@ -2,6 +2,50 @@
 
 use super::*;
 use crate::gpui_shell::workspace::{TerminalPane, terminal_activity};
+use std::collections::HashMap;
+
+#[derive(Default)]
+pub(in crate::gpui_shell::workspace) struct PaneBounds(HashMap<u64, PaneGeometry>);
+
+struct PaneGeometry {
+    visible: Bounds<gpui::Pixels>,
+    unzoomed: Option<Bounds<gpui::Pixels>>,
+}
+
+impl PaneBounds {
+    fn record(&mut self, id: u64, bounds: Bounds<gpui::Pixels>, zoomed: bool) {
+        let entry = self.0.entry(id).or_insert(PaneGeometry { visible: bounds, unzoomed: None });
+        entry.visible = bounds;
+        if !zoomed {
+            entry.unzoomed = Some(bounds);
+        }
+    }
+
+    pub(in crate::gpui_shell::workspace) fn get(&self, id: &u64) -> Option<&Bounds<gpui::Pixels>> {
+        self.0.get(id).map(|entry| &entry.visible)
+    }
+
+    pub(in crate::gpui_shell::workspace) fn remove(&mut self, id: &u64) {
+        self.0.remove(id);
+    }
+
+    pub(in crate::gpui_shell::workspace) fn direction_target(
+        &self,
+        ids: impl Iterator<Item = u64>,
+        focused: u64,
+        direction: nebula_split::SplitNav,
+    ) -> Option<u64> {
+        // Zoom updates only the focused pane. Use the last full split layout
+        // so its expanded rectangle cannot be compared with hidden panes.
+        let rects: Vec<_> = ids
+            .filter_map(|id| {
+                let bounds = self.0.get(&id)?.unzoomed.as_ref()?;
+                Some((id, super::super::to_split_rect(bounds)))
+            })
+            .collect();
+        nebula_split::nav_target(&rects, focused, direction)
+    }
+}
 
 impl NebulaWorkspace {
     #[allow(clippy::too_many_arguments)]
@@ -77,23 +121,13 @@ impl NebulaWorkspace {
                         .child(self.render_pane_grip(pane, group, cx)),
                 );
         }
-        v_flex()
+        let pane_box = v_flex()
             .id(("terminal-pane", id as usize))
+            .debug_selector(move || format!("pane-preview-{id}"))
             .size_full()
             .relative()
             .min_w_0()
             .min_h_0()
-            // Navigation, docking and pane dragging all measure the same full leaf.
-            .child(
-                canvas(
-                    move |bounds, _, _| {
-                        store.borrow_mut().insert(id, bounds);
-                    },
-                    |_, _, _, _| (),
-                )
-                .absolute()
-                .inset_0(),
-            )
             .when(multiple && !sidebar, |pane_box| {
                 pane_box.child(self.render_pane_header(
                     tab_ix,
@@ -108,7 +142,39 @@ impl NebulaWorkspace {
                     cx,
                 ))
             })
-            .child(body)
+            .child(body);
+        let preview = self.pane_drag_preview(id, cx);
+        let ink = cx.theme().primary;
+        div()
+            .size_full()
+            .relative()
+            // Hit testing, navigation and docking keep using the unshifted slot.
+            .child(
+                canvas(
+                    move |bounds, _, _| {
+                        store.borrow_mut().record(id, bounds, zoomed);
+                    },
+                    |_, _, _, _| (),
+                )
+                .absolute()
+                .inset_0(),
+            )
+            .child(if let Some(preview) = preview {
+                gpui::deferred(
+                    pane_box
+                        .left(preview.offset.x)
+                        .top(preview.offset.y)
+                        .when(preview.priority == 2, |pane| pane.child(
+                            div().absolute().inset_0().border_1().border_color(ink.opacity(0.65)),
+                        ))
+                        .when(preview.running, |pane| pane.child(
+                            canvas(|_, _, _| (), |_, _, window, _| window.request_animation_frame())
+                                .absolute().inset_0(),
+                        )),
+                ).with_priority(preview.priority).into_any_element()
+            } else {
+                pane_box.into_any_element()
+            })
             .into_any_element()
     }
 }

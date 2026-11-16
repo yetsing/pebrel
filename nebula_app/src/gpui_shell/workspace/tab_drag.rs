@@ -8,6 +8,7 @@ use nebula_split::{SplitNav, SplitTree};
 
 use super::{
     NebulaWorkspace, TAB_DRAG_THRESHOLD, WorkspaceTab,
+    sidebar_groups::{SidebarTabRow, SidebarTabRows},
     windowing::{self, CrossWindowDropDestination, CrossWindowTabDrag},
 };
 
@@ -209,8 +210,31 @@ impl NebulaWorkspace {
 
     /// 源下标加单轴位移换算出的整槽数；越过半格即换位。
     pub(super) fn drag_slot(drag: &TabDrag, len: usize) -> usize {
-        let slots = (drag.offset / drag.pitch.max(1.0)).round() as isize;
-        (drag.source as isize + slots).clamp(0, len.saturating_sub(1) as isize) as usize
+        drag_slot_at(drag.source, len, drag.offset, drag.pitch)
+    }
+
+    pub(super) fn sidebar_drag_slot(drag: &TabDrag, rows: &SidebarTabRows) -> usize {
+        if let SidebarTabRows::Flat(len) = rows {
+            return Self::drag_slot(drag, *len);
+        }
+        let Some((slot, span)) = rows.group_span(drag.source) else { return drag.source };
+        let target = drag_slot_at(slot - span.start, span.len(), drag.offset, drag.pitch);
+        let target = span.start + target;
+        let find_tab = |slot| match rows.row(slot) {
+            Some(SidebarTabRow::Tab(tab)) => Some(tab),
+            _ => None,
+        };
+        if target >= slot {
+            (target..span.end)
+                .find_map(find_tab)
+                .or_else(|| (slot..target).rev().find_map(find_tab))
+        } else {
+            (span.start..=target)
+                .rev()
+                .find_map(find_tab)
+                .or_else(|| (target + 1..=slot).find_map(find_tab))
+        }
+        .unwrap_or(drag.source)
     }
 
     pub(super) fn update_tab_drag(
@@ -332,6 +356,19 @@ impl NebulaWorkspace {
                     .and_then(|_| self.dock_nav_at(x, y))
             })
             .flatten();
+        let (source_slot, slots) = self
+            .tab_drag
+            .as_ref()
+            .map(|drag| {
+                if drag.axis == TabDragAxis::Vertical
+                    && let Some((slot, span)) = self.sidebar_tab_rows(cx).group_span(drag.source)
+                {
+                    (slot - span.start, span.len())
+                } else {
+                    (drag.source, len)
+                }
+            })
+            .expect("checked above");
         let drag = self.tab_drag.as_mut().expect("checked above");
         let dx = x - drag.press_x;
         let dy = y - drag.press_y;
@@ -347,8 +384,8 @@ impl NebulaWorkspace {
                     0.0
                 },
             };
-            let before = -(drag.source as f32) * drag.pitch;
-            let after = (len.saturating_sub(1) as f32 - drag.source as f32) * drag.pitch;
+            let before = -(source_slot as f32) * drag.pitch;
+            let after = (slots.saturating_sub(1) as f32 - source_slot as f32) * drag.pitch;
             drag.offset = delta.clamp(before, after.max(before));
             drag.dock = dock;
             cx.notify();
@@ -362,13 +399,25 @@ impl NebulaWorkspace {
             if let Some(nav) = drag.dock {
                 self.dock_tab_into_active(drag.source, nav, window, cx);
             } else {
-                let target = match drag.axis {
+                match drag.axis {
                     TabDragAxis::PaneSidebar { target } => {
-                        target.and_then(|pane| self.tab_of_pane(pane)).unwrap_or(drag.source)
+                        let target =
+                            target.and_then(|pane| self.tab_of_pane(pane)).unwrap_or(drag.source);
+                        self.move_tab(drag.source, target, window, cx);
                     },
-                    _ => Self::drag_slot(&drag, self.tabs.len()),
-                };
-                self.move_tab(drag.source, target, window, cx);
+                    TabDragAxis::Vertical => {
+                        let target = Self::sidebar_drag_slot(&drag, &self.sidebar_tab_rows(cx));
+                        self.reorder_sidebar_tabs(drag.source, target, window, cx);
+                    },
+                    TabDragAxis::Horizontal => {
+                        self.move_tab(
+                            drag.source,
+                            Self::drag_slot(&drag, self.tabs.len()),
+                            window,
+                            cx,
+                        );
+                    },
+                }
             }
         }
         cx.notify();
@@ -537,6 +586,38 @@ impl NebulaWorkspace {
         self.focus_active(window, cx);
         cx.notify();
     }
+
+    /// Apply a complete storage permutation and keep each tab paired with its metadata.
+    pub(super) fn reorder_tabs(
+        &mut self,
+        order: Vec<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mut destinations = vec![0; order.len()];
+        for (slot, original) in order.into_iter().enumerate() {
+            destinations[original] = slot;
+        }
+        self.active = destinations[self.active];
+        if let Some(rename) = &mut self.tab_rename {
+            rename.ix = destinations[rename.ix];
+        }
+        for slot in 0..destinations.len() {
+            while destinations[slot] != slot {
+                let target = destinations[slot];
+                self.tabs.swap(slot, target);
+                self.tab_meta.swap(slot, target);
+                destinations.swap(slot, target);
+            }
+        }
+        self.focus_active(window, cx);
+        cx.notify();
+    }
+}
+
+fn drag_slot_at(source: usize, len: usize, offset: f32, pitch: f32) -> usize {
+    let slots = (offset / pitch.max(1.0)).round() as isize;
+    (source as isize + slots).clamp(0, len.saturating_sub(1) as isize) as usize
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

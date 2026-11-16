@@ -1,20 +1,13 @@
 use super::*;
 
+#[cfg(all(test, feature = "gpui-test-support"))]
+mod tests;
+
 const PALETTE_SEARCH_HEIGHT: f32 = 48.0;
 
 /// 命令面板 / Shell 选择弹窗里图标轨的逻辑边长。品牌贴图、Nerd Font 字形
 /// 与组件库线性图标都排进同一个槽，行与行之间才不会有的缩进有的不缩进。
 const PALETTE_ICON_PX: f32 = 22.0;
-
-/// 非 shell 行（SSH 主机等）的字形字号。shell 行另有配平后的字号，见
-/// `shell_glyph_size`。
-const PALETTE_GLYPH_PX: f32 = 16.0;
-
-/// shell 行字形的字号：与品牌贴图按同一视觉尺寸配平（`shell_detect` 的
-/// 安全边距/墨迹比例是这条换算的唯一出处）。
-fn shell_glyph_size() -> f32 {
-    PALETTE_ICON_PX * crate::shell_detect::FALLBACK_ICON_SCALE
-}
 
 impl NebulaWorkspace {
     pub(super) fn run_selected_palette_action(
@@ -158,14 +151,15 @@ impl NebulaWorkspace {
                     WorkspacePaletteRow {
                         group_order,
                         group,
-                        label: item.label.to_owned(),
+                        label: crate::display::command_palette::localized_item_label(
+                            item, language,
+                        )
+                        .to_owned(),
                         hint: item.hint.to_owned(),
                         hint_style: WorkspacePaletteHintStyle::Shortcut,
                         search: item.search.to_owned(),
                         action: WorkspacePaletteAction::Shared(item.action.clone()),
                         icon: None,
-                        icon_glyph: None,
-                        icon_path: None,
                     }
                 })
                 .collect();
@@ -185,8 +179,6 @@ impl NebulaWorkspace {
                         hint_style: WorkspacePaletteHintStyle::Metadata,
                         action: WorkspacePaletteAction::TerminalReading { commands },
                         icon: None,
-                        icon_glyph: None,
-                        icon_path: None,
                     });
                 }
             }
@@ -304,9 +296,7 @@ impl NebulaWorkspace {
         let results_scrollable = content_height > results_height;
         // 同一份 picker 只要有一行带图标，就为全部行保留固定 icon rail；常规
         // 命令目录没有图标时整列消失，不会凭空多出一层缩进。
-        let has_icon_rail = items.iter().any(|item| {
-            item.icon.is_some() || item.icon_glyph.is_some() || item.icon_path.is_some()
-        });
+        let has_icon_rail = items.iter().any(|item| item.icon.is_some());
 
         let mut rows = Vec::new();
         let mut previous_group: Option<String> = None;
@@ -336,52 +326,20 @@ impl NebulaWorkspace {
                 );
             }
 
-            let icon_content = if let Some(image) = item.icon.clone() {
-                Some(
-                    gpui::StyledImage::object_fit(
-                        img(image).size(px(PALETTE_ICON_PX)),
-                        gpui::ObjectFit::Contain,
-                    )
-                    .into_any_element(),
-                )
-            } else if let Some(glyph) = item.icon_glyph {
-                // shell 行没有品牌贴图时画的是同一个 id-keyed 字形，字号要
-                // 跟品牌贴图配平；SSH 主机等行保持原来的字号。
-                let glyph_px = if matches!(
-                    &item.action,
-                    WorkspacePaletteAction::LaunchShell(_)
-                        | WorkspacePaletteAction::LaunchProfile(_)
-                ) {
-                    shell_glyph_size()
-                } else {
-                    PALETTE_GLYPH_PX
-                };
-                Some(
-                    div()
-                        .size(px(PALETTE_ICON_PX))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .font_family(crate::font_install::SYMBOL_FONT_FAMILY)
-                        .text_size(px(glyph_px))
-                        .text_color(foreground)
-                        .child(crate::gpui_shell::widgets::terminal_glyph(
-                            glyph.to_string(),
-                            PALETTE_ICON_PX,
-                        ))
-                        .into_any_element(),
-                )
-            } else {
-                item.icon_path.clone().map(|path| {
-                    div()
-                        .size(px(PALETTE_ICON_PX))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(Icon::default().path(path).small().text_color(foreground))
+            let icon_content = item.icon.as_ref().map(|icon| match icon {
+                PaletteIcon::Shell(shell) => {
+                    shell.element(PALETTE_ICON_PX, Some(foreground)).into_any_element()
+                },
+                PaletteIcon::Host(host) => {
+                    crate::gpui_shell::widgets::host_icon(host, PALETTE_ICON_PX, foreground)
                         .into_any_element()
-                })
-            };
+                },
+                PaletteIcon::Symbol(path) => Icon::default()
+                    .path(path.clone())
+                    .small()
+                    .text_color(foreground)
+                    .into_any_element(),
+            });
             let icon_slot = has_icon_rail.then(|| {
                 let slot = div()
                     .size(px(PALETTE_ICON_PX))
