@@ -4,9 +4,10 @@
 目标是同步上游已发布的稳定 Release，并验证本分支功能；发布标签可能来自独立发布分支，
 不能用当前 `main`、版本号文件或提交日期代替它。预发布版本需另行明确指定。
 
-固定流程为：GitHub **Sync fork** 同步 fork 的 `main` → 本地快进更新 `main` →
+固定流程为：用户在 GitHub 完成 **Sync fork**，核对 fork 的 `main` → 本地快进更新 `main` →
 核对正式 Release 标签与完整 SHA → 将该 Release SHA 合入当前功能分支并验证。
 远端和本地 `main` 跟踪上游完整进度，功能分支的合并边界始终是选定 Release。
+Sync fork 是后续工作的前置条件；未完成时必须停下，提醒用户操作，等待用户完成后再继续。
 
 代码块共享变量，应在仓库根目录、同一个独立 PowerShell 7 进程中依次执行。
 使用已安装的 Git、GitHub CLI、
@@ -50,37 +51,44 @@ git remote -v
 if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect origin' }
 ```
 
-### 1.2．通过 GitHub Sync fork 更新远端 main
+### 1.2．只读核对 Sync fork，未完成则等待用户
 
-核对 `origin` 指向自己的 fork。在 GitHub 打开 fork 仓库，选择 `main`，执行
-**Sync fork → Update branch**，将上游 `Kuddev/pebrel` 的 `main` 同步到 fork 的 `main`。
-若提示存在冲突或不能直接同步，停止并检查 fork 独有提交；不能用强制同步丢弃它们。
-Sync fork 成功只表示远端 fork 已更新，不表示本地 `main` 或当前功能分支已经更新。
-
-用户已手动完成 Sync fork 时，跳过写入接口，直接执行下一节的 fork、上游与本地 SHA 核对。
-接口因 OAuth 缺少 `workflow` 权限而拒绝更新时，不重复请求或修改凭据权限；保留错误记录，
-由用户完成 GitHub 同步后继续核对，不能把接口失败记为同步成功。
-
-也可在获得相同远端写入授权后调用 GitHub 的非强制同步接口：
-
-```powershell
-gh api --method POST "repos/$fork/merge-upstream" -f branch=main
-if ($LASTEXITCODE -ne 0) { throw 'GitHub Sync fork failed' }
-```
-
-返回 `merge_type: none` 且说明分支未落后，表示无需移动远端分支；仍应执行后续 SHA 核对。
-
-### 1.3．快进更新本地 main，再返回原功能分支
-
-以下代码核对 fork 与上游的当前 `main` SHA，获取 `origin/main` 并只允许快进更新。
-若同步期间上游又有新提交，应重新 Sync fork 和获取，不使用旧快照声称已同步最新 `main`。
+核对 `origin` 指向自己的 fork。本次同步任务尚未收到用户已完成 Sync fork 的明确说明时，
+先停止并提醒用户；收到完成回复后，只读查询上游与 fork 的 `main` SHA。
 
 ```powershell
 $upstreamMain = gh api "repos/$upstream/commits/main" --jq .sha
-if ($LASTEXITCODE -ne 0) { throw 'Upstream main lookup failed' }
+if ($LASTEXITCODE -ne 0 -or !$upstreamMain) { throw 'Cannot verify upstream main; stop synchronization' }
 $forkMain = gh api "repos/$fork/commits/main" --jq .sha
-if ($LASTEXITCODE -ne 0 -or $forkMain -ne $upstreamMain) {
-    throw 'Sync fork main on GitHub before updating local main'
+if ($LASTEXITCODE -ne 0 -or !$forkMain) { throw 'Cannot verify fork main; stop synchronization' }
+if ($forkMain -ne $upstreamMain) {
+    throw 'Stop: ask the user to complete GitHub Sync fork and wait for their reply'
+}
+```
+
+尚未完成 Sync fork、两侧 SHA 不一致或无法确认同步状态时，立即停止当前同步任务。
+未完成时明确提醒用户：“请在 fork 仓库选择 `main`，执行 Sync fork → Update branch，
+完成后告诉我，我再继续。”提供 [fork 仓库入口](https://github.com/yetsing/pebrel)。
+无法查询 SHA 时同时说明核验失败的具体原因，不能用旧缓存当作同步成功的证据。
+
+等待期间不执行 fetch、本地 `main` 更新、Release 合并或后续验证，保留当前分支、HEAD
+和已有工作区状态。不自行调用 `merge-upstream` 接口，不通过 SSH 推送 `main` 代替用户操作，
+不修改 OAuth 权限或使用强制同步绕过此步骤。用户未回复或仅经过一段时间，不代表已完成。
+
+用户告知完成后，重新执行本节的只读 SHA 查询；核对一致后从第 1.3 节继续。
+用户已告知完成且本轮核对两侧 SHA 一致时，直接继续，不重复要求用户操作。
+若 GitHub 提示冲突或不能直接同步，继续停止并检查 fork 独有提交，不能强制丢弃它们。
+Sync fork 成功只表示远端 fork 已更新，不表示本地 `main` 或当前功能分支已经更新。
+
+### 1.3．快进更新本地 main，再返回原功能分支
+
+仅在第 1.2 节通过后执行以下代码，使用刚核对的 SHA 获取 `origin/main` 并快进更新。
+若同步期间上游又有新提交，返回第 1.2 节，停止并提醒用户重新 Sync fork，等待完成后
+重新核对；不使用旧快照声称已同步最新 `main`。
+
+```powershell
+if (!$upstreamMain -or !$forkMain -or $forkMain -ne $upstreamMain) {
+    throw 'Complete the Sync fork verification in section 1.2 before continuing'
 }
 git fetch origin 'refs/heads/main:refs/remotes/origin/main'
 if ($LASTEXITCODE -ne 0) { throw 'Origin main fetch failed' }
@@ -423,7 +431,8 @@ Invoke-Check terminal { cargo test -p nebula_terminal --locked } -RustTests
 
 ## 8．v2.5.3 同步实例（2026-11-12）
 
-以下是合并提交 `57092f0a13f09354386d5e1106d43e85354876f2` 的已核验结果，作为流程实例；
+以下是合并提交 `57092f0a13f09354386d5e1106d43e85354876f2` 的已核验历史结果；
+其中的同步接口记录仅说明当时的做法，当前执行遵循第 1.2 节的用户手动 Sync fork 前置条件。
 版本、SHA 和测试数量不能直接当作下次同步的目标或验收结果。
 
 | 对象 | 本次结果 |
