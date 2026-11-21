@@ -4,19 +4,235 @@ Every release entry is provided in English and Simplified Chinese.
 
 每个版本条目均同时提供英文和简体中文说明。
 
-## 2.5.8 - Unreleased
+## 2.6.1 - 2026-11-20
 
-- `Pebrel-v2.5.8-linux-x64-preview.AppImage`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-linux-x64-preview.deb`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-linux-x64-preview.tar.gz`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-macos-arm64-preview.dmg`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-macos-x64-preview.dmg`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-windows-x64.zip`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-windows-x64-setup.exe`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-windows-arm64.zip`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-windows-arm64-setup.exe`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-android-universal-preview.apk`: `PENDING FINAL BUILD`
-- `Pebrel-v2.5.8-relay-manual.tar.gz`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-android-universal-preview.apk`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-linux-x64-preview.AppImage`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-linux-x64-preview.deb`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-linux-x64-preview.tar.gz`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-macos-arm64-preview.dmg`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-macos-x64-preview.dmg`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-relay-manual.tar.gz`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-windows-arm64-setup.exe`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-windows-arm64.zip`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-windows-x64-setup.exe`: `PENDING FINAL BUILD`
+- `Pebrel-v2.6.1-windows-x64.zip`: `PENDING FINAL BUILD`
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Fixed
+
+- Fixed enabling launch at login on Windows when the user’s Startup folder is missing. Addresses [#1028](https://github.com/Kuddev/pebrel/issues/1028).
+- Fixed pasting TIFF screenshots into terminal panes. Addresses [#1016](https://github.com/Kuddev/pebrel/issues/1016).
+- Fixed Windows upgrades and uninstalls removing user-edited WSL context menu registry entries.
+- Fixed opening a directory in an existing elevated Windows window ignoring the configured default shell profile. Addresses [#1042](https://github.com/Kuddev/pebrel/issues/1042).
+- Fixed SSH agent hooks dropping a complete answer that fits the message limit when unrelated tool output makes the event too large.
+- Fixed local OMP conversations losing their session on restart. On Windows with PowerShell 7, reopening Pebrel restores the same conversation after a normal close or forced exit. Addresses [#1027](https://github.com/Kuddev/pebrel/issues/1027).
+- Fixed Windows terminal tabs losing their previous output when waking from sleep. Addresses [#992](https://github.com/Kuddev/pebrel/issues/992).
+- Fixed Windows ignoring the `esc` alias when configured as the shortcut to minimize the window.
+- Fixed Windows upgrades leaving the WSL context menu pointed at the previous installation directory.
+- Fixed SFTP browsing after a cached channel closes. SSH image paste now retries a temporary channel refusal once before starting the upload.
+- Fixed reopening Pebrel to an idle shell when automatic Codex recovery is enabled and a saved tab has no thread ID. The tab now opens the Codex conversation picker.
+- Fixed a close confirmation acting on the wrong tab or split when its position changed while the dialog was open.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 修复
+
+- 修复 Windows 用户的启动文件夹缺失时无法启用登录自启动的问题。对应 [#1028](https://github.com/Kuddev/pebrel/issues/1028)。
+- 修复 TIFF 截图无法粘贴到终端窗格的问题。对应 [#1016](https://github.com/Kuddev/pebrel/issues/1016)。
+- 修复 Windows 升级或卸载时误删用户改过的 WSL 右键菜单注册表项的问题。
+- 修复在已打开的 Windows 管理员窗口中打开目录时忽略默认 Shell 配置的问题。对应 [#1042](https://github.com/Kuddev/pebrel/issues/1042)。
+- 修复 SSH 上的 Agent 因工具输出过长而丢失完整答复的问题。答复本身未超出消息上限时会完整送达。
+- 修复本地 OMP 对话在重启后丢失会话的问题。在 Windows 的 PowerShell 7 中，正常关窗或强制退出后重新打开 Pebrel 均可恢复原对话。对应 [#1027](https://github.com/Kuddev/pebrel/issues/1027)。
+- 修复 Windows 终端标签休眠唤醒后丢失原有滚动历史的问题。对应 [#992](https://github.com/Kuddev/pebrel/issues/992)。
+- 修复 Windows 在配置文件中使用 `esc` 绑定最小化窗口时，按 Esc 键无效的问题。
+- 修复 Windows 更改安装目录升级后，WSL 右键菜单仍指向旧目录的问题。
+- 修复缓存通道关闭后 SFTP 目录无法浏览的问题。向 SSH 标签粘贴图片时，若服务器临时拒绝打开通道，会在开始上传前重试一次。
+- 修复已开启 Codex 自动恢复、但标签缺少对话 ID 时，重开 Pebrel 只看到空闲 Shell 的问题。现在会在原标签打开 Codex 对话选择器。
+- 修复关闭确认框打开期间标签或分屏位置变化后，确认操作会关错目标的问题。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/Kuddev"><img src="https://avatars.githubusercontent.com/u/292709043?v=4&amp;s=96" width="48" height="48" alt="Kuddev" title="Kuddev" /></a>
+  <a href="https://github.com/WilliamWang1721"><img src="https://avatars.githubusercontent.com/u/140129782?v=4&amp;s=96" width="48" height="48" alt="WilliamWang1721" title="WilliamWang1721" /></a>
+  <a href="https://github.com/yjjheizhu"><img src="https://avatars.githubusercontent.com/u/86939240?v=4&amp;s=96" width="48" height="48" alt="yjjheizhu" title="yjjheizhu" /></a>
+</p>
+
+- [@Kuddev](https://github.com/Kuddev)
+- [@WilliamWang1721](https://github.com/WilliamWang1721)
+- [@yjjheizhu](https://github.com/yjjheizhu)
+
+## 2.6.0 - 2026-11-19
+
+```text
+ddab0834fe11765ab743596574a0e97d5d1f6621601b775102aec33af4393d1c  Pebrel-v2.6.0-android-universal-preview.apk
+ff968dc63cc5d0726884c44120cb6010cf84a41b5ee71b379b95b852dceaf4db  Pebrel-v2.6.0-linux-x64-preview.AppImage
+4ffe708184416f7e4a25f41c55ec3bba74625b3a7a9fbeba2fc7f2d5e52ca903  Pebrel-v2.6.0-linux-x64-preview.deb
+11988446d425471e528b070bb2c9987b800d1b14ca3e90964cdeb38bc9dcf662  Pebrel-v2.6.0-linux-x64-preview.tar.gz
+bbf1df83ef12777ed86a88fe890c2cab01f583dfe33d0c55f35fe42914376fa9  Pebrel-v2.6.0-macos-arm64-preview.dmg
+6f5ef424aca1047dd358ab442c8499fa104c111ae2684fad76636addc5d85c46  Pebrel-v2.6.0-macos-x64-preview.dmg
+988a125c24b719efc230e076929fe24708f4dd8f6ba4dc187b25a731fa679bbe  Pebrel-v2.6.0-relay-manual.tar.gz
+728e0c2b16d788adde94ebd096a0d117e84e1125d70c360f4ace6fa28d7e4976  Pebrel-v2.6.0-windows-arm64-setup.exe
+256c9ec2f66b57bac0c3e140cd4259987b4c00b005bdec5ab2d2cce2158db12e  Pebrel-v2.6.0-windows-arm64.zip
+4d5164a4c37f3df8d0f9753d8ca5a4446936be0343f5a94247d17f22408c507e  Pebrel-v2.6.0-windows-x64-setup.exe
+a3ff96b876f508a889119e21dada94a2ff57d07070f065c274f2bbf623139186  Pebrel-v2.6.0-windows-x64.zip
+```
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Fixed
+
+- Fixed Runtime discovery files on Linux and macOS so that only the owner can read them. Runtime access tokens now use the operating system's secure random source.
+- Fixed commands typed with a leading space appearing in Pebrel's command history.
+- Fixed command history always saving new entries to disk. Set `command_history_persist=0` in `pebrel_settings.txt` and restart to keep new entries only in memory.
+- Fixed command history records being lost when multiple Pebrel instances save at the same time.
+- Fixed SSH fallback applying a later jump host even when an earlier `ProxyCommand none` disables the proxy.
+- Fixed redundant shell discovery at startup and when opening a pane. A cached shell is checked before launch.
+- Fixed the updater selecting an empty installer upload. It now uses a usable matching package when available.
+- Fixed mouse-wheel coordinates appearing at the Bash prompt after a foreground program is killed.
+- Fixed the Agent session index ignoring `PEBREL_CONFIG_DIR`. Each profile now saves and reads its own hook session index.
+- Fixed Git worktree creation and cleanup for repositories whose directory names end with a space or newline.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 修复
+
+- 修复 Linux 和 macOS 的 Runtime 发现文件权限，仅允许文件所有者读取。Runtime 访问令牌改用系统的安全随机源生成。
+- 修复以空格开头的命令被写入 Pebrel 命令历史的问题。
+- 修复命令历史总是将新记录写入磁盘的问题。在 `pebrel_settings.txt` 中设置 `command_history_persist=0` 并重启，新记录仅保留在内存中。
+- 修复多个 Pebrel 实例同时保存命令历史时记录丢失的问题。
+- 修复 SSH 回退解析在前面的 `ProxyCommand none` 已关闭代理时，仍套用后续跳板机的问题。
+- 修复启动和打开窗格时重复扫描 Shell 的问题。启动前会检查缓存中的 Shell 是否仍可用。
+- 修复更新器误选空安装包的问题。有可用的匹配安装包时，会选用可用包。
+- 修复 Bash 前台程序被强制结束后，滚动滚轮会向提示符输入鼠标坐标的问题。
+- 修复 Agent 会话索引忽略 `PEBREL_CONFIG_DIR` 的问题。各配置目录分别保存和读取自己的 Hook 会话索引。
+- 修复仓库目录名以空格或换行结尾时，Git 工作树无法创建和清理的问题。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/Kuddev"><img src="https://avatars.githubusercontent.com/u/292709043?v=4&amp;s=96" width="48" height="48" alt="Kuddev" title="Kuddev" /></a>
+  <a href="https://github.com/drchiodo"><img src="https://avatars.githubusercontent.com/u/30090207?v=4&amp;s=96" width="48" height="48" alt="drchiodo" title="drchiodo" /></a>
+  <a href="https://github.com/not-exist"><img src="https://avatars.githubusercontent.com/u/121529946?v=4&amp;s=96" width="48" height="48" alt="not-exist" title="not-exist" /></a>
+</p>
+
+- [@Kuddev](https://github.com/Kuddev)
+- [@drchiodo](https://github.com/drchiodo)
+- [@not-exist](https://github.com/not-exist)
+
+## 2.5.9 - 2026-11-16
+
+```text
+ceb9ee8f469e0c3a0114ddad6d3430d580482b9939fbbca87d4d61860d0a2370  Pebrel-v2.5.9-android-universal-preview.apk
+dd72086b7af9aa9998e912f87d0faf593c800a2e9fbe5b40fec26d9e51a5e0eb  Pebrel-v2.5.9-linux-x64-preview.AppImage
+4f7c5fd6d4873f89565f51431f2bc432676ac3d0351438716a98770d6ed5cac1  Pebrel-v2.5.9-linux-x64-preview.deb
+ce14c50b9033e917ac2e4c829ba46e9eddb1a7db195cdefa48cdd9a8b9c25085  Pebrel-v2.5.9-linux-x64-preview.tar.gz
+8c4a72156f5aad2682c8cfb21964d1393be36d9aa29ac5ecb150b3560e68d56f  Pebrel-v2.5.9-macos-arm64-preview.dmg
+ca6221af6e2866359d5849a03198d270fc96de7ca78ba757f5d97291716d6967  Pebrel-v2.5.9-macos-x64-preview.dmg
+b2ec02fe16a917082e4ff8e8951af81c17c98bc4c64b315c1a0ed58663584658  Pebrel-v2.5.9-relay-manual.tar.gz
+72824426933ad1e8f8628f663e65a09a78e514823eef938848faf958e16075ca  Pebrel-v2.5.9-windows-arm64-setup.exe
+d83c8e904cadb72f6c9fdd86f4008722c890422232dcb179776abbdb047562d8  Pebrel-v2.5.9-windows-arm64.zip
+2907bd6b11cdf427b90573dce128b5fa7fbe82d9776def4ba673cedd552a3da9  Pebrel-v2.5.9-windows-x64-setup.exe
+140514042062641feb09484cf00f5e9fcc6344b84d949ca2e67fbb8025926cd5  Pebrel-v2.5.9-windows-x64.zip
+```
+
+### English
+
+macOS, Linux, and Android downloads are Preview builds.
+
+#### Added
+
+- Added an option to keep the local directory or SSH host in tab titles. The current AI task remains visible on hover.
+- Added the option to delete selected files, symbolic links, or empty folders from the SFTP file drawer after confirmation.
+- Added manual sleep and optional automatic sleep for idle local tabs. Waking a tab starts a fresh shell in its previous directory and restores recent terminal output.
+
+#### Fixed
+
+- Fixed macOS agent hook connections closing before a delayed message arrived.
+- Fixed tab groups filling the entire row on hover. The title and guide line now highlight.
+- Fixed low contrast in the Linux Settings navigation when the window background is translucent.
+- Fixed image paste staying blocked after a Linux pane reached its 32-image quota and the earlier work had finished.
+- Fixed the About page showing Windows on other desktop platforms.
+- Fixed wrapped formulas losing alignment when partly scrolled out of view and the terminal still has their source lines. Columns stay in place, and gaps no longer activate nearby links.
+- Fixed local file links broken by UTF-8 truncation when the original path can be recovered from the link.
+- Fixed terminal stalls when saving directory history. Recent directories remain available in memory if the history file cannot be locked.
+- Fixed Antigravity subagents taking over the foreground session or marking its turn complete.
+- Fixed wide terminal glyphs overlapping the next cell.
+
+#### Improved
+
+- Improved desktop text rendering with grayscale antialiasing by default. Use `pebrel.luau` to choose system or subpixel antialiasing. Subpixel mode requires an opaque window and platform support.
+
+### 中文
+
+macOS、Linux 和 Android 下载为预览版。
+
+#### 新增
+
+- 新增标签标题选项，可保留本地目录名或 SSH 主机名。悬停标签仍可查看当前 AI 任务。
+- 新增 SFTP 文件抽屉的删除操作，确认后可删除所选文件、符号链接和空目录。
+- 新增空闲本地标签的手动休眠和可选的自动休眠。唤醒时在原目录启动新的 Shell，并恢复近期终端输出。
+
+#### 修复
+
+- 修复 macOS 上助手 Hook 连接在延迟消息到达前就被关闭的问题。
+- 修复鼠标悬停时标签分组整行被填色的问题，现在只高亮标题和引导线。
+- 修复 Linux 窗口背景半透明时设置导航文字对比度过低的问题。
+- 修复 Linux 同一窗格粘贴 32 张图片后，即使之前的任务已结束也无法继续粘贴的问题。
+- 修复其他桌面平台的关于页误显示 Windows 的问题。
+- 修复终端仍保留公式源行时，换行公式部分滚出视区后的错位。固定列保持原位，点击空白不会误开邻近链接。
+- 修复因 UTF-8 截断而失效的本地文件链接，可在路径能够从链接中恢复时打开原文件。
+- 修复保存目录历史时终端卡顿的问题。无法锁定历史文件时，仍可使用内存中的近期目录。
+- 修复 Antigravity 子会话接管前台会话或将前台任务误标为完成的问题。
+- 修复终端宽字形覆盖相邻单元格的问题。
+
+#### 改进
+
+- 改进桌面文字的抗锯齿，默认使用灰度模式，可在 `pebrel.luau` 中选择系统或子像素模式。子像素模式需要平台支持，且窗口须为不透明。
+
+### Contributors
+
+<p>
+  <a href="https://github.com/Kuddev"><img src="https://avatars.githubusercontent.com/u/292709043?v=4&amp;s=96" width="48" height="48" alt="Kuddev" title="Kuddev" /></a>
+  <a href="https://github.com/whitoud"><img src="https://avatars.githubusercontent.com/u/54259693?v=4&amp;s=96" width="48" height="48" alt="whitoud" title="whitoud" /></a>
+  <a href="https://github.com/Cec1c"><img src="https://avatars.githubusercontent.com/u/170788854?v=4&amp;s=96" width="48" height="48" alt="Cec1c" title="Cec1c" /></a>
+  <a href="https://github.com/not-exist"><img src="https://avatars.githubusercontent.com/u/121529946?v=4&amp;s=96" width="48" height="48" alt="not-exist" title="not-exist" /></a>
+  <a href="https://github.com/onlynet"><img src="https://avatars.githubusercontent.com/u/21923781?v=4&amp;s=96" width="48" height="48" alt="onlynet" title="onlynet" /></a>
+  <a href="https://github.com/Sakyvo"><img src="https://avatars.githubusercontent.com/u/169263722?v=4&amp;s=96" width="48" height="48" alt="Sakyvo" title="Sakyvo" /></a>
+</p>
+
+- [@Kuddev](https://github.com/Kuddev)
+- [@whitoud](https://github.com/whitoud)
+- [@Cec1c](https://github.com/Cec1c)
+- [@not-exist](https://github.com/not-exist)
+- [@onlynet](https://github.com/onlynet)
+- [@Sakyvo](https://github.com/Sakyvo)
+
+## 2.5.8 - 2026-11-14
+
+```text
+547389aa667e09dd2bca05ce28f775f2094feb9c26710d772b477934a4460603  Pebrel-v2.5.8-android-universal-preview.apk
+ef562584dc6d305d7eddbbcede98c9d1e93819e3f7a4e7495640ba60b371f039  Pebrel-v2.5.8-linux-x64-preview.AppImage
+ea2f40da780daa1e2163a7b1c70953c166ddfff7873a5b5de0a6e564cb808c32  Pebrel-v2.5.8-linux-x64-preview.deb
+9cea897873640953a4617369433ffcd839bd633109cdc23da8f7cea6a3f40c33  Pebrel-v2.5.8-linux-x64-preview.tar.gz
+43e386f17c7cf5b56af478ea0bd93491ac3d5c77482c92636d1456f8385932f2  Pebrel-v2.5.8-macos-arm64-preview.dmg
+b1f5b4aa3b7d23b54969c5f499b9a2850a4f2fd5f6a328b3ae04b21f927ce5d8  Pebrel-v2.5.8-macos-x64-preview.dmg
+4e0f22a190012fe3c13b7bde1d03890a977f2f68d21f5ad6c39724bb0ba63cb8  Pebrel-v2.5.8-relay-manual.tar.gz
+be8227525e65a8e7b9fc7115972970cff8cce4fe64796f1a50b003e9608efa30  Pebrel-v2.5.8-windows-arm64-setup.exe
+babff4e96dfff7ccbc2021b2e49464574ed046d72c878f6ff75acd34ce2d6e30  Pebrel-v2.5.8-windows-arm64.zip
+20f67a7d3e51504228903bd74d24a52dc6079dfd72631788fae8f55f6742eb16  Pebrel-v2.5.8-windows-x64-setup.exe
+6df0f0203357de4403d013c802446326f0938bc29d575fc869d295b1c7ff806e  Pebrel-v2.5.8-windows-x64.zip
+```
 
 ### English
 
@@ -2524,7 +2740,7 @@ Windows 提供 Pebrel 安装器和 ZIP 便携包；Linux x64 包以及 macOS App
 - Fixed queued AI resume commands and session identities being lost during Shell initialization. Compact Codex resume screens are recognized without another AI message, and exiting the CLI clears the foreground identity.
 - Fixed long WSL directory titles overlapping distribution labels in the sidebar and top tabs.
 - Fixed quiet terminals retaining an intermediate startup size. The final viewport size reaches the terminal even when no more output arrives.
-- Fixed Windows terminal focus consuming `Alt+F4` and `Alt+Space`. `Alt+F4` now uses the normal window-close flow, and `Alt+Space`, followed by `N`, uses the system menu to minimize the window.
+- Fixed the focused terminal on Windows consuming `Alt+F4` and `Alt+Space`. `Alt+F4` now uses the normal window-close flow, and `Alt+Space`, followed by `N`, uses the system menu to minimize the window.
 - Fixed the top Settings tab disappearing when switching to another tab. It now remains available until explicitly closed, including when tabs overflow or the tab layout changes.
 - Fixed `Alt+1–9` and `Ctrl+1–9` tab shortcuts losing priority to terminal input. They now work while a terminal or CLI has focus and respect custom shortcut changes without restarting.
 - Fixed WSL filename search failing when the directory path contains spaces or shell punctuation. Cancelling a search stops its own directory scan.
@@ -2775,7 +2991,7 @@ Windows 提供 Pebrel 安装器和 ZIP 便携包，不再提供旧名兼容安�
 
 <a href="https://github.com/Sakyvo"><img src="https://github.com/Sakyvo.png?size=96" width="64" height="64" alt="@Sakyvo avatar"></a><a href="https://github.com/821869798"><img src="https://github.com/821869798.png?size=96" width="64" height="64" alt="@821869798 avatar"></a>
 
-**[@Sakyvo](https://github.com/Sakyvo)** - Added the optional Windows terminal proxy, selection-aware `Ctrl+C`, and word deletion with `Ctrl+Backspace`. / 新增可选的 Windows 终端代理、按选区处理的 `Ctrl+C`，以及 `Ctrl+Backspace` 按词删除。（[#94](https://github.com/Kuddev/pebrel/pull/94)、[#93](https://github.com/Kuddev/pebrel/pull/93)、[#92](https://github.com/Kuddev/pebrel/pull/92)）
+**[@Sakyvo](https://github.com/Sakyvo)** - Added the optional proxy for terminals on Windows, selection-aware `Ctrl+C`, and word deletion with `Ctrl+Backspace`. / 新增可选的 Windows 终端代理、按选区处理的 `Ctrl+C`，以及 `Ctrl+Backspace` 按词删除。（[#94](https://github.com/Kuddev/pebrel/pull/94)、[#93](https://github.com/Kuddev/pebrel/pull/93)、[#92](https://github.com/Kuddev/pebrel/pull/92)）
 
 **[@821869798](https://github.com/821869798)** - Contributed `Shift+Enter` multiline input and Antigravity completion and permission-state detection. / 贡献 `Shift+Enter` 多行输入，以及 Antigravity 回答结束与权限状态识别。（[#96](https://github.com/Kuddev/pebrel/pull/96)）
 
@@ -2972,7 +3188,7 @@ Windows 提供 Pebrel 安装器和 ZIP 便携包，不再提供旧名兼容安�
 - **Panes and live managed Agents support bounded bracketed paste from literal text, stdin, or a file.** Prompt, paste, control-key, argv, and multiline validation prevent arbitrary terminal bytes from bypassing the public API, and generation-aware targeting keeps delayed input from reaching a restarted Agent with the same display name.
 - **Quick Jump searches tabs, panes, frequent directories, configured SSH hosts, and recoverable AI sessions in one palette.** Results retain tab and pane location, cwd, remote destination, provider, and session metadata, then expose direct focus, open, launch, or resume actions. File and Recipe scopes remain hidden because those backends are not yet end-to-end.
 - **Selected terminal or document text can be sent to an explicitly chosen live Agent.** The searchable Send to Chat dialog previews the selection as a quote, preserves blank lines, accepts an optional comment, can copy the composed message, labels remote SSH targets, and reports the destination after sending. If no live Agent exists, the action is disabled instead of guessing a pane.
-- **Windows terminal tabs can be dragged between Nebula windows.** A tab may become a new tab in the target or dock its complete split tree to the left, right, top, or bottom; terminal panes, runtime ownership, subscriptions, focus, and session metadata move together. Moving the last tab closes the empty source window, while a target that disappears before commit leaves the source tab attached.
+- **Terminal tabs on Windows can be dragged between Nebula windows.** A tab may become a new tab in the target or dock its complete split tree to the left, right, top, or bottom; terminal panes, runtime ownership, subscriptions, focus, and session metadata move together. Moving the last tab closes the empty source window, while a target that disappears before commit leaves the source tab attached.
 - **Windows taskbar progress reflects OSC 9;4 emitted by terminal applications.** Normal, indeterminate, error, paused, and cleared states map to the native taskbar indicator; unsupported or unknown states clear stale progress instead of leaving the taskbar stuck.
 - **The GPUI file tree now offers complete context actions for local and WSL entries.** Users can open files or directories, reveal them in Explorer, copy host or Linux paths, launch a terminal in a directory, and send deletions to the recycle bin after confirmation. WSL routes retain their distribution and guest path instead of being flattened into an invalid host path.
 
@@ -2981,7 +3197,7 @@ Windows 提供 Pebrel 安装器和 ZIP 便携包，不再提供旧名兼容安�
 - **Common formulas such as `$E=mc^2$` and `$n!$` are recognized without reinterpreting shell variables, prompts, prices, or `sed`/`grep` BRE groups as mathematics.** Inline delimiters may cross terminal soft wraps but no longer join unrelated hard lines.
 - **Resetting a settings drop-down immediately restores its displayed default value** instead of updating the saved setting while leaving the old selection visible.
 - **Rounded terminal panes no longer expose an outline or a gap along their top edge** in either light or dark themes; the shell paint now follows the pane's actual left, right, bottom, and zero-width top gutters.
-- **New Windows terminal panes no longer inherit stale environment variables from the long-running Nebula process.** Each pane rebuilds its environment from the current machine and user registry values, merges `PATH` in Windows order, treats variable names case-insensitively, expands registry values against the refreshed snapshot, preserves process-private values when a registry entry disappears, and applies pane-specific overrides last. The same refreshed environment reaches GPUI panes, legacy panes, and WSL launches. Addresses [#68](https://github.com/Kuddev/nebula/issues/68).
+- **New terminal panes on Windows no longer inherit stale environment variables from the long-running Nebula process.** Each pane rebuilds its environment from the current machine and user registry values, merges `PATH` in Windows order, treats variable names case-insensitively, expands registry values against the refreshed snapshot, preserves process-private values when a registry entry disappears, and applies pane-specific overrides last. The same refreshed environment reaches GPUI panes, legacy panes, and WSL launches. Addresses [#68](https://github.com/Kuddev/nebula/issues/68).
 - **The GPUI quick-terminal shortcut now works outside Nebula.** The configured combination is registered with Windows when the first workspace opens, follows later settings changes without discarding a still-valid old registration if the replacement fails, and targets the most recently active regular workspace instead of requiring Nebula to be focused.
 - **The quick terminal no longer opens with a blank strip or settles at ordinary-window dimensions.** Its native size and terminal surface are synchronized once while the window is still above the screen, and its full-width, 40%-height geometry is confirmed after entry without repeatedly resizing the PTY or swapchain. It is also excluded from regular-window MRU routing, runtime command targeting, session restoration, reveal-all behavior, and ordinary workspace persistence, so hiding or closing it cannot rewrite the normal workspace session.
 - **Display-math delimiters no longer consume unrelated prose or later formulas.** Multiline `$$...$$` and `\[...\]` pairing now requires a real block-opening context and stops at blank-line presentation boundaries, so a delimiter mentioned in prose or an orphaned closer at the top of scrollback cannot pair with a later block.

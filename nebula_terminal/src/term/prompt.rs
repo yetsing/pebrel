@@ -23,6 +23,7 @@ impl<T> Term<T> {
         if self.mode.contains(TermMode::ALT_SCREEN) {
             return;
         }
+        self.finish_scrollback_startup();
         let abs = self.nebula_cursor_abs_line();
 
         // A screen redraw (clear, resize) can re-emit a mark for the same or
@@ -39,6 +40,11 @@ impl<T> Term<T> {
         self.reading.prompt_marks.push_back(abs);
         self.reading.prompt_active = true;
         self.reading.prompt_input = None;
+    }
+
+    /// Even an invisible or whitespace-only edit can belong to a live shell buffer.
+    pub fn note_prompt_input(&mut self, submitted_or_interrupted: bool) {
+        self.reading.prompt_edited = !submitted_or_interrupted;
     }
 
     pub fn nebula_end_prompt(&mut self) {

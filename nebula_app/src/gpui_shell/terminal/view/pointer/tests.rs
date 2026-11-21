@@ -441,6 +441,10 @@ fn link_gesture_opens_regex_files_and_osc8_with_or_without_mouse_reporting(
         ("file:///tmp/pebrel-notes.md", "file:///tmp/pebrel-notes.md"),
         ("[notes](./notes.md)", "[notes](./notes.md)"),
         ("\x1b]8;;https://example.com/osc8\x1b\\site\x1b]8;;\x1b\\", "https://example.com/osc8"),
+        (
+            "\x1b]8;;file:///tmp/03_示例清单现\u{FFFD}\x1b\\条目_v2.xlsx/tmp/03_示例清单现有条目_v2.xlsx\x1b]8;;\x1b\\",
+            "file:///tmp/03_示例清单现\u{FFFD}",
+        ),
     ] {
         for mouse_mode in [false, true] {
             let output = if mouse_mode {
@@ -891,4 +895,53 @@ fn scrollbar_modes_never_capture_without_history_and_hover_clears_on_leave(
         draw(&mut window);
         assert!(!terminal.read_with(&window, |view, _| view.scrollbar_hovered));
     }
+}
+
+#[gpui::test]
+fn compaction_gap_before_fixed_sidebar_does_not_hover_or_open_shifted_link(
+    cx: &mut TestAppContext,
+) {
+    let wire = concat!(
+        "\x1b[?1049h",
+        r"\(x^2\) trailing prose link",
+        "\x1b]8;;https://example.com/sidebar-edge\x1b\\X\x1b]8;;\x1b\\",
+        "\x1b[44mSSSSSSSS\x1b[0m\r\n\r\nprompt> ",
+    );
+    let (view, mut window, _) = link_fixture(cx, wire.as_bytes());
+    let mut shifted_col = 27;
+    for _ in 0..8 {
+        draw(&mut window);
+        shifted_col = view.read_with(&window, |view, _| {
+            let origin = view.session.as_ref().unwrap().term.lock().viewport_origin_for(view.rows);
+            (0..view.cols)
+                .find(|&column| {
+                    view.math.source_cell(TermPoint::new(origin, Column(column)), origin)
+                        == Some(TermPoint::new(origin, Column(27)))
+                })
+                .unwrap_or(27)
+        });
+        if shifted_col < 27 {
+            break;
+        }
+    }
+    assert!(shifted_col < 27, "rendered formula must compact the OSC 8 link left of column 27");
+
+    for gap_col in (shifted_col + 1)..28 {
+        let gap_pos = cell(&view, &window, gap_col);
+        window.simulate_mouse_move(gap_pos, None, link_modifiers());
+        assert!(
+            view.read_with(&window, |view, _| view.link_hover.is_none()),
+            "blank compaction gap column {gap_col} must not hover the shifted link"
+        );
+        window.simulate_mouse_down(gap_pos, MouseButton::Left, link_modifiers());
+        window.simulate_mouse_up(gap_pos, MouseButton::Left, link_modifiers());
+        assert_eq!(clipboard(&mut window).as_deref(), Some("before"));
+    }
+
+    let shifted_pos = cell(&view, &window, shifted_col);
+    window.simulate_mouse_move(shifted_pos, None, link_modifiers());
+    assert!(view.read_with(&window, |view, _| view.link_hover.is_some()));
+    window.simulate_mouse_down(shifted_pos, MouseButton::Left, link_modifiers());
+    window.simulate_mouse_up(shifted_pos, MouseButton::Left, Modifiers::default());
+    assert_eq!(clipboard(&mut window).as_deref(), Some("https://example.com/sidebar-edge"));
 }

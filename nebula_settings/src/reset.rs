@@ -19,6 +19,7 @@ const RESET_KEYS: &[&str] = &[
     "font_size",
     "ctrl_wheel_font_zoom",
     "ligatures",
+    crate::TextAntialiasing::KEY,
     "cursor_shape",
     "cursor_blink",
     "cursor_motion",
@@ -27,6 +28,7 @@ const RESET_KEYS: &[&str] = &[
     "dim_inactive_panes",
     "multiline_paste_confirm",
     "tab_close_visible",
+    "static_tab_titles",
     "terminal_proxy",
     "refresh_environment",
     "powerline",
@@ -36,6 +38,7 @@ const RESET_KEYS: &[&str] = &[
     "ghost",
     "accept",
     "completion_style",
+    crate::command_history::COMMAND_HISTORY_PERSIST,
     "prompt_suggestions_enabled",
     "prompt_suggestions_provider_id",
     "prompt_suggestions_model",
@@ -54,6 +57,7 @@ const RESET_KEYS: &[&str] = &[
     "auto_check_updates",
     "auto_download_updates",
     "keep_session",
+    "tab_sleep_minutes",
     "restore_session",
     "resume_ai",
     "tray",
@@ -165,6 +169,14 @@ mod tests {
     use crate::{RawSettings, RuntimeSettings};
 
     #[test]
+    fn reset_turns_off_automatic_tab_sleep() {
+        let text = default_settings_text("tab_sleep_minutes=15\ncustom=keep\n");
+        let runtime = RuntimeSettings::from_raw(&RawSettings::from_text(&text));
+        assert_eq!(runtime.tab_sleep, crate::TabSleep::Off);
+        assert!(text.contains("custom=keep"));
+    }
+
+    #[test]
     fn reset_restores_auto_scrollbar_visibility() {
         let text = default_settings_text("scrollbar_visibility=always\ncustom=keep\n");
         assert_eq!(
@@ -192,6 +204,21 @@ mod tests {
         let runtime = RuntimeSettings::from_raw(&RawSettings::from_text(&restored));
         assert_eq!(runtime.scrollback_lines, 10_000);
         assert_eq!(runtime.scroll_speed, 1.0);
+    }
+
+    #[test]
+    fn static_tab_titles_round_trip_and_reset_without_erasing_other_settings() {
+        for text in ["", "static_tab_titles=\n", "static_tab_titles=invalid\n"] {
+            assert!(!RuntimeSettings::from_raw(&RawSettings::from_text(text)).static_tab_titles);
+        }
+        let original = "custom=keep\n";
+        let enabled = crate::apply_updates(original, &[("static_tab_titles", "1".into())]);
+        assert!(RuntimeSettings::from_raw(&RawSettings::from_text(&enabled)).static_tab_titles);
+        let disabled = crate::apply_updates(&enabled, &[("static_tab_titles", "0".into())]);
+        assert!(!RuntimeSettings::from_raw(&RawSettings::from_text(&disabled)).static_tab_titles);
+        let restored = default_settings_text(&enabled);
+        assert_eq!(restored, original);
+        assert!(!RuntimeSettings::from_raw(&RawSettings::from_text(&restored)).static_tab_titles);
     }
 
     #[test]
@@ -297,6 +324,26 @@ mod tests {
         let restored = default_settings_text("refresh_environment=0\nprivate_key=keep\n");
         assert_eq!(restored, "private_key=keep\n");
         assert!(RuntimeSettings::from_raw(&RawSettings::from_text(&restored)).refresh_environment);
+    }
+
+    #[test]
+    fn command_history_persistence_defaults_on_and_resets() {
+        let persists = |text: &str| RawSettings::from_text(text).command_history_persists();
+        assert!(persists(""));
+        assert!(persists("command_history_persist=invalid"));
+        let disabled = crate::apply_updates(
+            "custom=keep\n",
+            &[(crate::command_history::COMMAND_HISTORY_PERSIST, "0".into())],
+        );
+        assert!(!persists(&disabled));
+        let enabled = crate::apply_updates(
+            &disabled,
+            &[(crate::command_history::COMMAND_HISTORY_PERSIST, "1".into())],
+        );
+        assert!(persists(&enabled));
+        let restored = default_settings_text(&disabled);
+        assert_eq!(restored, "custom=keep\n");
+        assert!(persists(&restored));
     }
 
     #[test]

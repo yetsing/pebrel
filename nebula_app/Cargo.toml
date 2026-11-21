@@ -1,7 +1,7 @@
 [package]
 name = "nebula"
 default-run = "pebrel"
-version = "2.5.8"
+version = "2.6.1"
 license = "GPL-3.0-or-later"
 description = "Pebrel — a GPU-accelerated terminal emulator"
 readme = "README.md"
@@ -22,15 +22,15 @@ bench = false
 
 [dependencies.nebula_terminal]
 path = "../nebula_terminal"
-version = "2.5.8"
+version = "2.6.1"
 
 [dependencies.nebula_config_derive]
 path = "../nebula_config_derive"
-version = "2.5.8"
+version = "2.6.1"
 
 [dependencies.nebula_config]
 path = "../nebula_config"
-version = "2.5.8"
+version = "2.6.1"
 
 # 可选：GPUI UI 层（feature = "gpui-shell"，模块 src/gpui_shell/）。
 # GPUI/component 的版本和 Git 来源由根 Cargo.toml 统一精确固定。
@@ -79,7 +79,7 @@ optional = true
 
 [dependencies.pebrel-completions]
 path = "../nebula-completions"
-version = "2.5.8"
+version = "2.6.1"
 
 [dependencies]
 anyhow = { version = "=1.0.104", optional = true }
@@ -150,6 +150,9 @@ unicode-segmentation = "1.13.3"
 # 注册表 socks= 条目错拼成 http:// 代理。
 ureq = { version = "3", features = ["json", "socks-proxy"] }
 zeroize = "1"
+# Constant-time bearer-token comparison for the loopback services (bearer_token.rs).
+# The lock already pins 2.6.1 through the crypto crates; nothing new is downloaded.
+subtle = "2.6"
 winit = { version = "0.30.9", default-features = false, features = ["rwh_06", "serde"] }
 global-hotkey = "0.8.0"
 getrandom = "0.3.3"
@@ -157,7 +160,7 @@ regex = "1.13.1"
 # `image` 被 GPUI 壳的壁纸、文档 tab、行内图片、数学视图无条件使用，必须是
 # 无条件依赖；此前按 `cfg(not(target_os = "macos"))` 排除会让 macOS 目标在
 # 编译期找不到 crate（2026-09-02 交叉 check 首个暴露的问题）。
-image = { version = "0.25.8", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"] }
+image = { version = "0.25.8", default-features = false, features = ["bmp", "gif", "jpeg", "png", "tiff", "webp"] }
 rusqlite = { version = "0.40.2", features = ["bundled", "hooks"] }
 sha1 = "0.11.0"
 
@@ -166,7 +169,7 @@ naga = { version = "=29.0.4", optional = true, features = ["wgsl-in", "glsl-in",
 gif = { version = "=0.14.2", optional = true }
 
 [build-dependencies]
-nebula-settings = { path = "../nebula_settings", version = "2.5.8" }
+nebula-settings = { path = "../nebula_settings", version = "2.6.1" }
 gl_generator = { version = "0.14.0", optional = true }
 serde = "1"
 serde_json = "1"

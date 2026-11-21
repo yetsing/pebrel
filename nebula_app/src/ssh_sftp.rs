@@ -1,3 +1,6 @@
+#[cfg(feature = "gpui-shell")]
+#[path = "ssh_sftp/deletion.rs"]
+mod deletion;
 #[path = "ssh_sftp/document.rs"]
 pub(crate) mod document;
 #[path = "ssh_sftp/export.rs"]
@@ -30,6 +33,9 @@ use tokio::io::AsyncWriteExt;
 
 use transaction::FileStamp;
 use transfer::TransferObserver;
+
+#[cfg(feature = "gpui-shell")]
+pub(crate) use deletion::SftpDeleteError;
 
 type SftpError = Box<dyn std::error::Error + Send + Sync>;
 type SftpResult<T> = Result<T, SftpError>;
@@ -73,6 +79,16 @@ pub enum SftpEntryKind {
     Directory,
     File,
     Symlink,
+}
+
+impl SftpEntryKind {
+    fn from_file_type(file_type: FileType) -> Self {
+        match file_type {
+            FileType::Dir => Self::Directory,
+            FileType::Symlink => Self::Symlink,
+            FileType::File | FileType::Other => Self::File,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -138,10 +154,10 @@ pub struct SftpController {
     upload_debounce_active: Arc<AtomicBool>,
 }
 
-/// Long-lived SFTP channel used only by interactive directory browsing.
+/// Per-pane SFTP channel for directory listings and interactive mutations.
 ///
 /// Each browser session owns a stable channel, separate from bulk transfers.
-/// This handle is cheap to clone into UI jobs, serializes directory requests
+/// This handle is cheap to clone into UI jobs, serializes requests
 /// on one SFTP subsystem, and is never shared with upload/download workers.
 #[derive(Clone)]
 pub(crate) struct SftpBrowseSession {
@@ -496,6 +512,7 @@ impl SftpBrowseSession {
         let mut path = normalize_remote_path("/", path);
         let mut slot = self.session.lock().await;
         loop {
+            let cached = slot.is_some();
             // read_dir may leave a handle open if it fails or is cancelled.
             // Each failed attempt retires its subsystem, including during recovery.
             let session = match slot.take() {
@@ -507,6 +524,7 @@ impl SftpBrowseSession {
                     *slot = Some(session);
                     return Ok((path, entries));
                 },
+                Err(error) if cached && stale_browse_session(&error) => continue,
                 Err(SftpClientError::Status(status))
                     if status.status_code == StatusCode::NoSuchFile
                         && mode == SftpBrowseMode::RecoverMissing
@@ -527,6 +545,20 @@ impl SftpBrowseSession {
         crate::ssh_session::open_sftp(&self.destination)
             .await
             .map_err(|error| format!("无法连接 {}：{error}", self.destination))
+    }
+}
+
+fn stale_browse_session(error: &SftpClientError) -> bool {
+    match error {
+        SftpClientError::IO(_) | SftpClientError::Timeout => true,
+        SftpClientError::Status(status) => {
+            matches!(status.status_code, StatusCode::NoConnection | StatusCode::ConnectionLost)
+        },
+        SftpClientError::UnexpectedBehavior(message) => {
+            matches!(message.as_str(), "session closed" | "sender dropped")
+                || message.starts_with("SendError:")
+        },
+        _ => false,
     }
 }
 
@@ -718,11 +750,7 @@ async fn read_remote_dir(
     let mut entries = Vec::new();
     for entry in sftp.read_dir(path.to_owned()).await? {
         let metadata = entry.metadata();
-        let kind = match metadata.file_type() {
-            FileType::Dir => SftpEntryKind::Directory,
-            FileType::Symlink => SftpEntryKind::Symlink,
-            FileType::File | FileType::Other => SftpEntryKind::File,
-        };
+        let kind = SftpEntryKind::from_file_type(metadata.file_type());
         let type_prefix = match kind {
             SftpEntryKind::Directory => 'd',
             SftpEntryKind::Symlink => 'l',
@@ -1071,6 +1099,42 @@ pub(crate) fn upload_clipboard_image_on_pane(
     on_finished: impl FnOnce(Result<String, String>) + Send + 'static,
 ) {
     upload_clipboard_image_using(async move { connection.open_sftp().await }, png, on_finished);
+}
+
+pub(crate) fn remove_clipboard_images_on_pane(
+    connection: crate::ssh_session::PaneConnection,
+    paths: Vec<String>,
+    on_finished: impl FnOnce(Vec<String>) + Send + 'static,
+) {
+    let Ok(runtime) = crate::ssh_session::runtime() else {
+        on_finished(paths);
+        return;
+    };
+    runtime.spawn(async move {
+        let mut failed = Vec::new();
+        let mut remaining = paths.into_iter();
+        let removed = tokio::time::timeout(Duration::from_secs(30), async {
+            let sftp = connection.open_sftp().await?;
+            while let Some(path) = remaining.as_slice().first() {
+                if let Err(error) = sftp.remove_file(path.as_str()).await
+                    && !matches!(&error, SftpClientError::Status(status)
+                        if status.status_code == StatusCode::NoSuchFile)
+                {
+                    log::debug!("Could not remove a temporary SSH clipboard image: {error}");
+                    failed.extend(remaining.next());
+                } else {
+                    remaining.next();
+                }
+            }
+            Ok::<(), SftpError>(())
+        })
+        .await;
+        if !matches!(removed, Ok(Ok(()))) {
+            log::debug!("Could not open the original SSH connection to remove clipboard images");
+        }
+        failed.extend(remaining);
+        on_finished(failed);
+    });
 }
 
 fn upload_clipboard_image_using(
@@ -1471,6 +1535,18 @@ async fn download_file_atomic(
     transaction::publish_local_file(temporary, destination, modified, context).await
 }
 
+async fn remove_remote_path(
+    sftp: &SftpSession,
+    path: String,
+    kind: SftpEntryKind,
+) -> Result<(), SftpClientError> {
+    if kind == SftpEntryKind::Directory {
+        sftp.remove_dir(path).await
+    } else {
+        sftp.remove_file(path).await
+    }
+}
+
 async fn delete_remote_entry(
     sftp: &SftpSession,
     entry: SftpEntry,
@@ -1497,8 +1573,10 @@ async fn delete_remote_entry(
                     stack.push(Step::Visit(child));
                 }
             },
-            Step::Visit(entry) => sftp.remove_file(entry.path).await?,
-            Step::RemoveDirectory(path) => sftp.remove_dir(path).await?,
+            Step::Visit(entry) => remove_remote_path(sftp, entry.path, entry.kind).await?,
+            Step::RemoveDirectory(path) => {
+                remove_remote_path(sftp, path, SftpEntryKind::Directory).await?
+            },
         }
     }
     Ok(())
@@ -1593,6 +1671,46 @@ mod tests {
                 assert!(retired, "cancelled readdir must not retain its open remote handle");
             },
         );
+    }
+
+    #[cfg(feature = "gpui-test-support")]
+    #[tokio::test]
+    async fn stale_cached_listing_reopens_once_and_permission_errors_stop() {
+        use super::{SftpBrowseSession, SftpSession};
+        use russh_sftp::protocol::{Handle, StatusCode};
+
+        struct Peer(StatusCode);
+        impl russh_sftp::server::Handler for Peer {
+            type Error = StatusCode;
+
+            fn unimplemented(&self) -> StatusCode {
+                StatusCode::OpUnsupported
+            }
+
+            async fn opendir(&mut self, _: u32, path: String) -> Result<Handle, StatusCode> {
+                assert_eq!(path, "/saved");
+                Err(self.0)
+            }
+        }
+
+        async fn session(error: StatusCode) -> SftpSession {
+            let (client, server) = tokio::io::duplex(4096);
+            tokio::spawn(russh_sftp::server::run(server, Peer(error)));
+            SftpSession::new(client).await.unwrap()
+        }
+
+        let browser = SftpBrowseSession::from_test_sessions(
+            "fixture".into(),
+            [
+                session(StatusCode::ConnectionLost).await,
+                session(StatusCode::PermissionDenied).await,
+                session(StatusCode::PermissionDenied).await,
+            ],
+        );
+        let error =
+            browser.list_dir("/saved", super::SftpBrowseMode::RecoverMissing).await.unwrap_err();
+        assert!(error.contains(&StatusCode::PermissionDenied.to_string()), "{error}");
+        assert_eq!(super::lock(browser.test_sessions.as_ref().unwrap()).len(), 1);
     }
 
     #[test]

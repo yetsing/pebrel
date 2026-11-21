@@ -141,8 +141,8 @@ impl NebulaWorkspace {
             )
             .on_ok(move |_, window, cx| {
                 let _ = workspace.update(cx, |workspace, cx| {
-                    if let Some(index) = workspace.tab_of_pane(pane_id) {
-                        workspace.close_pane(index, pane_id, window, cx);
+                    if let Some(current) = workspace.tab_of_pane(pane_id) {
+                        workspace.close_pane(current, pane_id, window, cx);
                     }
                 });
                 true
@@ -179,10 +179,8 @@ impl NebulaWorkspace {
             )
             .on_ok(move |_, window, cx| {
                 let _ = workspace.update(cx, |workspace, cx| {
-                    if let Some(index) =
-                        workspace.tab_meta.iter().position(|meta| meta.runtime_id == tab_id)
-                    {
-                        workspace.close_tab(index, window, cx);
+                    if let Ok(current) = workspace.runtime_tab_index(&tab_id.0) {
+                        workspace.close_tab(current, window, cx);
                     }
                 });
                 true

@@ -71,7 +71,7 @@ impl NebulaWorkspace {
             }
         }
         for (index, tab) in self.tabs.iter().enumerate() {
-            if !tab.is_terminal() {
+            if !matches!(tab, WorkspaceTab::Terminal { .. }) {
                 rows.push(Row::Tab(self.tab_meta[index].runtime_id.clone()));
             }
         }

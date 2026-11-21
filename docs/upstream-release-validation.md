@@ -57,6 +57,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect origin' }
 若提示存在冲突或不能直接同步，停止并检查 fork 独有提交；不能用强制同步丢弃它们。
 Sync fork 成功只表示远端 fork 已更新，不表示本地 `main` 或当前功能分支已经更新。
 
+用户已手动完成 Sync fork 时，跳过写入接口，直接执行下一节的 fork、上游与本地 SHA 核对。
+接口因 OAuth 缺少 `workflow` 权限而拒绝更新时，不重复请求或修改凭据权限；保留错误记录，
+由用户完成 GitHub 同步后继续核对，不能把接口失败记为同步成功。
+
 也可在获得相同远端写入授权后调用 GitHub 的非强制同步接口：
 
 ```powershell
@@ -183,6 +187,11 @@ function Invoke-Check {
         throw "$Name ran no passing Rust tests; inspect filters and features"
     }
 }
+if ($IsWindows) {
+    Invoke-Check windows-runtime {
+        pwsh -NoProfile -File scripts/prepare-windows-runtime.ps1 -Destination assets/windows/conhost
+    }
+}
 Invoke-Check architecture {
     uv run --no-project --no-python-downloads --python 3.12 scripts/check_architecture.py --base $targetCommit
 }
@@ -193,7 +202,7 @@ Invoke-Check product {
     cargo check -p nebula --bin pebrel --features gpui-shell --tests --locked
 }
 Invoke-Check feature-tests {
-    cargo test -p nebula --bin pebrel --features gpui-shell,gpui-test-support --locked -- pane_groups pane_sidebar input_preview ai_hook:: assistant_answer:: input::terminal_input platform::ai_session_identity platform::project_directory platform::private_file workspace::windowing:: workspace::sidebar_groups workspace::tab_scroll workspace::tab_drag workspace::tab_duplication workspace::settings_navigation::ui_tests workspace::terminal_activity::tests --test-threads=1
+    cargo test -p nebula --bin pebrel --features gpui-shell,gpui-test-support --locked -- pane_groups pane_sidebar input_preview ai_hook:: assistant_answer:: input::terminal_input platform::ai_session_identity platform::project_directory platform::private_file workspace::windowing:: workspace::sidebar_groups workspace::tab_scroll workspace::tab_drag workspace::tab_duplication workspace::settings_navigation::ui_tests workspace::terminal_activity::tests workspace::hibernation:: workspace::closing:: --test-threads=1
 } -RustTests
 Invoke-Check bridges {
     node --test scripts/tests/opencode-notification-bridge.test.mjs scripts/tests/pi-notification-bridge.test.mjs
@@ -205,6 +214,10 @@ Invoke-Check whitespace { git diff --check }
 ```
 
 `gpui-test-support` 必须启用，否则原生控件测试会被条件编译移除。
+Windows 运行库准备脚本校验上游固定的压缩包、两个二进制摘要与 PE 架构；缺少缓存时会下载。
+隔离工作树不会自动带入 Git 忽略的 `assets/windows/conhost/`，必须先准备运行库。
+复用本地文件时，也要逐个核对本次发布脚本中的固定摘要；不能跳过要求 bundled host 的
+`windows_pty_lifecycle` 测试，或用系统 ConPTY 的成功代替它。
 检查日志中的实际测试名称、数量、忽略项与失败项，不能只看进程返回 0。
 过滤器失效后，helper 会拒绝全部零用例；部分过滤器失效仍需对照实际名称核对。
 至少确认以下三项存在并通过，不固定总数，因为上游可能增加或重命名测试：
@@ -322,11 +335,34 @@ foreach ($theme in @('dark', 'light')) {
         }
     }
 }
+$sleepQa = Join-Path $runDir 'native-sleep'
+New-Item -ItemType Directory -Path $sleepQa | Out-Null
+$env:PEBREL_CONFIG_DIR = Join-Path $sleepQa 'config'
+$env:PEBREL_SIDEBAR_QA_DIR = $null
+$env:PEBREL_HIBERNATION_QA_DIR = $sleepQa
+$sleepFixture = Start-Process -FilePath $testExe -ArgumentList @(
+    '--ignored', '--exact', 'gpui_shell::workspace::hibernation::tests::sleeping_tab_stays_reachable_and_wakes_with_its_frozen_project', '--nocapture'
+) -WindowStyle Hidden -PassThru -RedirectStandardOutput "$sleepQa-stdout.log" -RedirectStandardError "$sleepQa-stderr.log"
+if (!$sleepFixture.WaitForExit(30000)) {
+    Stop-Process -Id $sleepFixture.Id
+    throw 'Own sleep fixture did not exit normally'
+}
+if ($sleepFixture.ExitCode -ne 0) { throw "Sleep fixture failed: $($sleepFixture.ExitCode)" }
+$sleepResult = Get-Content (Join-Path $sleepQa 'verified.json') -Raw | ConvertFrom-Json
+if (!$sleepResult.failed_launch_retained -or !$sleepResult.row_click_woke -or
+    !$sleepResult.project_restored -or !$sleepResult.closed_cleanly) {
+    throw 'Incomplete sleep fixture result'
+}
 ```
 
 夹具内部验证置顶顺序、恢复顺序、精确 Pane 选择及单 Pane 关闭。外部驱动补充检查
 折叠后 PTY 继续执行和固定目录分支刷新。所有 marker 文件只触发夹具的真实控件事件。
 这里的预览由测试协议注入，不能作为四种 CLI 真实采集链路的证明。
+
+另显式运行[休眠恢复原生回归](../nebula_app/src/gpui_shell/workspace/hibernation/tests.rs)，
+检查启动失败仍保留标签、真实侧栏点击唤醒 CMD、恢复冻结项目归属和关闭清理。
+真实 PTY 必须使用原生事件循环；不能放入 GPUI 确定性测试调度器，其后台线程会触发
+跨线程活动断言。此用例在普通测试组中忽略，但本节必须单独运行并检查结果，不能省略。
 
 上述片段不自动截图。需要视觉核对时，在各 marker 推进前，按 `ready.json` 的 `hwnd`
 只截取夹具窗口，并检查深浅主题、长项目名、同行分支、图钉、两行预览及选中竖线。
@@ -348,6 +384,7 @@ foreach ($theme in @('dark', 'light')) {
 | OpenCode 活动回合中的回复不再触发恢复 | 检查是否先报告对应等待；覆盖无等待、有效等待及重复回复，不能把“回合活动”代替“已报告等待” |
 | Pane 行高测试与原生标题栏断言冲突 | 保留 Windows Pane ID、固定行高和拖柄重排断言，同时合入上游原生控件可见时的标题栏中心与边界容差 |
 | 上游 Tab 专用控件测试在 Windows 找不到元素 | 与 Pane 产品测试分开：测试夹具直接渲染 Tab 侧栏，复用产品拖动更新及释放方法，验证图标、关闭状态和分组排序；不向产品增加兼容选择器，也不删减 Pane 回归 |
+| 新增休眠唤醒路径缺少 Pane 项目字段或侧栏入口 | 将 Codex TUI 准备放在普通启动与带滚动历史启动共享的路径；休眠保留项目归属、清理活体 Pane 投影，侧栏保留可点击标签，成功唤醒后恢复归属并刷新分组；覆盖启动失败与真实控件唤醒 |
 
 若差异涉及终端核心，可额外执行 `cargo test -p nebula_terminal --locked`。
 其中真实虚拟环境用例支持通过 `PEBREL_QA_VENV_ACTIVATE` 提供已有激活脚本，避免依赖

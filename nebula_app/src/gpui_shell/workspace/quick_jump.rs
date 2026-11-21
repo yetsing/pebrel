@@ -46,6 +46,9 @@ fn tab_rows(
     for (tab_ix, tab) in workspace.tabs.iter().enumerate() {
         let title = workspace.tab_title(tab_ix, cx).to_string();
         let (kind, icon_path) = match tab {
+            WorkspaceTab::Sleeping(_) => {
+                (language.text(crate::i18n::Message::TabSleepStatus), IconName::Pause.path())
+            },
             WorkspaceTab::Terminal { .. } => {
                 (language.pick("终端", "Terminal"), IconName::SquareTerminal.path())
             },
@@ -77,7 +80,7 @@ fn tab_rows(
         let WorkspaceTab::Terminal { panes, focused, .. } = tab else { continue };
         for pane in panes {
             let view = pane.view.read(cx);
-            let pane_title = view.tab_label();
+            let pane_title = view.tab_label(cx);
             let location = view
                 .ssh_destination
                 .clone()

@@ -185,6 +185,80 @@ begin
   Check(FileExists(NewLink), 'shortcut pointing at another program is preserved');
 end;
 
+procedure CheckEditedWslVerbs(ShellRoot, Menu, Executable, DirectoryArgument: string;
+  Distros: TArrayOfString);
+var
+  Depth: Integer;
+  Verb, Flat, Suffix, Value: string;
+  Failed: Boolean;
+begin
+  Verb := Menu + '\shell\PebrelWsl0';
+  Flat := ShellRoot + '\PebrelWslLegacy';
+  for Depth := 0 to 1 do begin
+    if Depth = 0 then Suffix := '\Custom' else Suffix := '\command\Custom';
+    Check(RegWriteStringValue(HKCU, Verb + Suffix, '', 'keep'), 'seed edited cascade verb');
+    Check(RegWriteStringValue(HKCU, Flat + '\command', '',
+      '"' + Executable + '" --gpui --shell "wsl:Old" --working-directory "' +
+      DirectoryArgument + '"'), 'seed legacy verb');
+    Check(RegWriteStringValue(HKCU, Flat + Suffix, '', 'keep'), 'seed edited legacy verb');
+    Failed := False;
+    try
+      RegisterWslContextMenuAt(ShellRoot, Executable, DirectoryArgument, Distros);
+    except
+      Failed := True;
+    end;
+    Check(Failed, 'registration must reject an edited WSL verb');
+    RemoveOwnedWslContextMenusAt(ShellRoot, Executable);
+    Check(RegQueryStringValue(HKCU, Verb + Suffix, '', Value) and (Value = 'keep'),
+      'preserve nested user data inside cascading verbs');
+    Check(RegQueryStringValue(HKCU, Flat + Suffix, '', Value) and (Value = 'keep'),
+      'preserve nested user data inside legacy verbs');
+    Check(RegDeleteKeyIncludingSubkeys(HKCU, Verb + Suffix), 'remove cascade fixture edit');
+    Check(RegDeleteKeyIncludingSubkeys(HKCU, Flat), 'remove legacy fixture edit');
+  end;
+end;
+
+procedure CheckRelocatedWslMenu(ShellRoot, NewExecutable: string);
+var
+  OldExecutable, Menu, CommandKey, Value: string;
+  Distros: TArrayOfString;
+  Failed: Boolean;
+begin
+  Menu := ShellRoot + '\PebrelWslMenu';
+  CommandKey := Menu + '\shell\PebrelWsl0\command';
+  PreviousInstallDir := ExtractFileDir(NewExecutable) + '-previous';
+  OldExecutable := AddBackslash(PreviousInstallDir) + 'pebrel.exe';
+  SetArrayLength(Distros, 1);
+  Distros[0] := 'Debian';
+  try
+    RegisterWslContextMenuAt(ShellRoot, OldExecutable, '%1', Distros);
+    Check(RegWriteStringValue(HKCU, CommandKey + '\Custom', '', 'keep'), 'seed edited old menu');
+    Failed := False;
+    try
+      RegisterWslContextMenuAt(ShellRoot, NewExecutable, '%1', Distros);
+    except
+      Failed := True;
+    end;
+    Check(Failed and RegKeyExists(HKCU, CommandKey + '\Custom'), 'preserve edited previous installation');
+    Check(RegDeleteKeyIncludingSubkeys(HKCU, CommandKey + '\Custom'), 'remove fixture edit');
+    Check(RegWriteStringValue(HKCU, ShellRoot + '\PebrelWslLegacy\command', '',
+      '"' + OldExecutable + '" --gpui --shell "wsl:Old" --working-directory "%1"'), 'seed old flat verb');
+    RegisterWslContextMenuAt(ShellRoot, NewExecutable, '%1', Distros);
+    Check(not RegKeyExists(HKCU, ShellRoot + '\PebrelWslLegacy'), 'remove flat verb from previous install');
+    Check(RegQueryStringValue(HKCU, Menu, 'PebrelOwner', Value) and (Value = NewExecutable),
+      'register new installation as owner');
+    Check(RegQueryStringValue(HKCU, CommandKey, '', Value) and
+      (Value = '"' + NewExecutable + '" --gpui --shell "wsl:Debian" --working-directory "%1"'),
+      'relocated command uses the new executable');
+    PreviousInstallDir := ExtractFileDir(NewExecutable);
+    RegisterWslContextMenuAt(ShellRoot, NewExecutable, '%1', Distros);
+    Check(RegQueryStringValue(HKCU, Menu, 'PebrelOwner', Value) and (Value = NewExecutable),
+      'repeat install in the same directory');
+  finally
+    PreviousInstallDir := '';
+  end;
+end;
+
 procedure CheckContextMenus(Root: string);
 var
   RegistryRoot, ShellRoot, Executable, Value, Menu, ForeignCommand: string;
@@ -196,6 +270,7 @@ begin
   Executable := Root + '\Program Files\pebrel.exe';
   ForeignCommand := '"D:\other\pebrel.exe" --gpui --shell "wsl:Other" --working-directory "%1"';
   try
+    CheckRelocatedWslMenu(RegistryRoot + '\relocated', Executable);
     for Index := 0 to 1 do begin
       ShellRoot := RegistryRoot + '\root' + IntToStr(Index);
       Menu := ShellRoot + '\PebrelWslMenu';
@@ -212,6 +287,7 @@ begin
       Check(not RegKeyExists(HKCU, ShellRoot + '\PebrelWsl0'), 'migrate old flat entry');
       Check(RegGetSubkeyNames(HKCU, ShellRoot, Names) and (GetArrayLength(Names) = 3), 'only normal, cascade and foreign roots remain');
       Check(RegGetSubkeyNames(HKCU, Menu + '\shell', Names) and (GetArrayLength(Names) = 3), 'three distros live inside cascade');
+      CheckEditedWslVerbs(ShellRoot, Menu, Executable, Value, Distros);
       Check(RegQueryStringValue(HKCU, Menu, 'SubCommands', Value) and (Value = ''), 'enable static cascade');
       Check(RegQueryStringValue(HKCU, Menu + '\shell\PebrelWsl1\command', '', Value), 'child command exists');
       if Index = 0 then

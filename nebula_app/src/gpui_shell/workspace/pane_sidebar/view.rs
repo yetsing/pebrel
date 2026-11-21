@@ -490,7 +490,9 @@ impl NebulaWorkspace {
                 }
             }))
             .child(
-                Icon::new(if self.tabs[index].is_settings() {
+                Icon::new(if matches!(self.tabs[index], WorkspaceTab::Sleeping(_)) {
+                    IconName::Pause
+                } else if self.tabs[index].is_settings() {
                     IconName::Settings
                 } else {
                     IconName::File

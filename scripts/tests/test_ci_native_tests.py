@@ -81,7 +81,7 @@ class NativeSuiteTests(unittest.TestCase):
         stable = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
         stable_events = stable.split("\non:\n", 1)[1].split("\nconcurrency:", 1)[0]
         self.assertEqual(set(re.findall(r"^  ([a-z_]+):", stable_events, re.M)),
-                         {"push", "workflow_dispatch"})
+                         {"push", "workflow_dispatch", "workflow_call"})
         self.assertIn('tags: ["v*.*.*"]', stable_events)
 
     def test_windows_branch_package_is_artifact_only_and_uses_the_product_packager(self):

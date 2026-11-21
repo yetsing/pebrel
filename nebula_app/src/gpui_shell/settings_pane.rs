@@ -782,6 +782,7 @@ impl SettingsPane {
             "dim_inactive_panes" => flag!(dim_inactive_panes),
             "multiline_paste_confirm" => flag!(multiline_paste_confirm),
             "tab_close_visible" => flag!(tab_close_visible),
+            "static_tab_titles" => flag!(static_tab_titles),
             "terminal_proxy" => flag!(terminal_proxy),
             "refresh_environment" => flag!(refresh_environment),
             "powerline" => flag!(powerline),
@@ -793,6 +794,7 @@ impl SettingsPane {
             "cjk_bold_regular" => flag!(cjk_bold_regular),
             "fetch" => flag!(fetch),
             "keep_session" => flag!(keep_session),
+            "tab_sleep_minutes" => pick!(tab_sleep),
             "restore_session" => flag!(restore_session),
             "resume_ai" => flag!(resume_ai),
             "tray" => flag!(tray),
@@ -1397,6 +1399,13 @@ impl SettingsPane {
             )
             .child(
                 self.nav_group(NavChild::Tabs, cx)
+                    .child(self.switch_row(
+                        "static_tab_titles",
+                        language.text(crate::i18n::Message::SettingsPaneKeepTabTitles),
+                        help("static_tab_titles", language),
+                        self.runtime.static_tab_titles,
+                        cx,
+                    ))
                     .child(self.select_row(
                         "tabs_position",
                         language.pick("标签栏位置", "Tab bar position"),
@@ -1467,6 +1476,12 @@ impl SettingsPane {
                     cx,
                 ))
             })
+            .child(self.select_row(
+                "tab_sleep_minutes",
+                language.text(crate::i18n::Message::TabSleepAutomatic),
+                language.text(crate::i18n::Message::TabSleepAutomaticHelp),
+                cx,
+            ))
             .child(self.switch_row(
                 "restore_session",
                 language.pick("启动时恢复上次标签", "Restore previous tabs at startup"),

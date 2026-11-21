@@ -144,11 +144,16 @@ impl HistoryIndex {
 #[derive(Debug, Default)]
 pub struct NebulaHistory {
     pools: HashMap<HistoryScope, HistoryIndex>,
+    memory_only: bool,
 }
 
 impl NebulaHistory {
     pub fn load() -> Self {
-        let mut history = Self::default();
+        // Read once when the store loads. If the preference file is unreadable,
+        // keep new commands in memory until it can be read on a later launch.
+        let persist = nebula_settings::RawSettings::try_load()
+            .is_ok_and(|settings| settings.command_history_persists());
+        let mut history = Self { memory_only: !persist, ..Self::default() };
         for scope in [
             HistoryScope::Local,
             HistoryScope::Wsl(String::new()),
@@ -165,18 +170,27 @@ impl NebulaHistory {
     }
 
     pub fn record(&mut self, scope: &HistoryScope, cmd: &str, cwd: &str) {
+        // A leading space keeps the command out of memory and disk, like bash's
+        // `HISTCONTROL=ignorespace`. Callers must pass the line before trimming it.
+        if cmd.starts_with(' ') {
+            return;
+        }
         let scope = scope.clone().normalized();
         let cmd = cmd.trim();
         if cmd.is_empty() {
             return;
         }
         let pool = self.pools.entry(scope.clone()).or_default();
-        append(&scope, cmd, cwd);
+        if !self.memory_only {
+            append(&scope, cmd, cwd);
+        }
         pool.insert(cmd.to_owned());
-        history_debug_log(format!(
-            "history_record scope={scope:?} cmd={cmd:?} cwd={cwd:?} entries={}",
-            pool.entries.len()
-        ));
+        if !self.memory_only {
+            history_debug_log(format!(
+                "history_record scope={scope:?} cmd={cmd:?} cwd={cwd:?} entries={}",
+                pool.entries.len()
+            ));
+        }
     }
 
     /// Popup search retains spelling and ranks matching commands by frequency, then recency.
@@ -297,6 +311,10 @@ fn history_debug_log(message: impl AsRef<str>) {
 }
 
 fn append(scope: &HistoryScope, cmd: &str, cwd: &str) {
+    append_at(&history_path(scope.file_name()), scope, cmd, cwd);
+}
+
+fn append_at(path: &Path, scope: &HistoryScope, cmd: &str, cwd: &str) {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs())
@@ -313,9 +331,12 @@ fn append(scope: &HistoryScope, cmd: &str, cwd: &str) {
         );
         record["target"] = serde_json::Value::String(identity.to_owned());
     }
-    let path = history_path(scope.file_name());
+    // Formatting directly into the file emits several writes. Assemble the
+    // complete line before appending so other processes cannot interleave fields.
+    let mut line = record.to_string();
+    line.push('\n');
     if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-        let _ = writeln!(file, "{record}");
+        let _ = file.write_all(line.as_bytes());
     }
 }
 
@@ -432,6 +453,55 @@ mod tests {
             pool.insert((*command).to_owned());
         }
         history
+    }
+
+    #[test]
+    fn leading_space_commands_stay_out_of_memory_and_disk() {
+        let scope = HistoryScope::Ssh("leading-space-unit".into());
+        let mut history = NebulaHistory::default();
+        history.record(&scope, " echo hidden", "/");
+        history.record(&scope, "   echo hidden-too", "/");
+        // `record` returns before `append`, so no history file sees these lines.
+        assert!(history.pools.get(&scope.normalized()).is_none());
+    }
+
+    #[test]
+    fn memory_only_commands_still_feed_scoped_suggestions() {
+        let mut history = NebulaHistory { memory_only: true, ..NebulaHistory::default() };
+        let scope = HistoryScope::Ssh("memory-only-fixture".into());
+        history.record(&scope, "echo retained", "/");
+        assert_eq!(history.hint(&scope, "echo "), Some("retained"));
+        assert!(history.hint(&HistoryScope::Local, "echo ").is_none());
+    }
+
+    #[test]
+    fn concurrent_appenders_preserve_complete_history_records() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(LOCAL_HISTORY_FILE);
+        let writers = 8;
+        let per_writer = 64;
+        let barrier = std::sync::Barrier::new(writers);
+        std::thread::scope(|tasks| {
+            for writer in 0..writers {
+                let (path, barrier) = (&path, &barrier);
+                tasks.spawn(move || {
+                    barrier.wait();
+                    for index in 0..per_writer {
+                        let command = format!("echo fixture-{writer}-{index}");
+                        append_at(path, &HistoryScope::Local, &command, "/fixture");
+                    }
+                });
+            }
+        });
+        let contents = std::fs::read_to_string(path).unwrap();
+        let mut commands = std::collections::HashSet::new();
+        for line in contents.lines() {
+            let (scope, command) = parse_record(&HistoryScope::Local, line)
+                .expect("each append must remain a complete history record");
+            assert_eq!(scope, HistoryScope::Local);
+            assert!(commands.insert(command));
+        }
+        assert_eq!(commands.len(), writers * per_writer);
     }
 
     #[test]

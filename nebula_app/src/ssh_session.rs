@@ -1154,8 +1154,8 @@ pub(crate) async fn open_sftp(
     }
 
     // SFTP 面板自己有加载态，不参与终端 pane 的连接卡片。
-    let session = authenticated_session(&destination, &profile, None::<&NoopSshEventHost>).await?;
-    sftp_on_session(&session).await
+    let route = resolve_connection_route(&destination, &profile, 0, None).await?;
+    sftp::open_on_route(&route).await
 }
 
 async fn sftp_on_session(
@@ -1928,7 +1928,7 @@ fn clear_secret(secret: &mut Option<Vec<u8>>) {
 }
 
 fn remote_hook_token() -> io::Result<String> {
-    crate::ai_hook::remote::new_token()
+    crate::bearer_token::generate()
 }
 
 fn render_error<H: SshEventHost>(

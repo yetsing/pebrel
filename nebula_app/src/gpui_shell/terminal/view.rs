@@ -13,6 +13,7 @@ mod conversation;
 pub(super) mod cursor;
 mod cwd_report;
 mod editor;
+pub(in crate::gpui_shell) mod hibernation;
 mod image_paste;
 mod input_preview;
 mod layout;
@@ -517,6 +518,8 @@ pub struct TerminalView {
     output_visible: bool,
     /// 上一次输出驱动帧的时刻（[`Self::schedule_output_frame`] 的合并基准）。
     last_output_frame: Option<std::time::Instant>,
+    sleep_idle_since: std::time::Instant,
+    power_shell_sleep_epoch: Option<u64>,
     /// 在途的输出尾帧定时器（间隔内批次的补帧）。
     output_trailing_frame: Option<gpui::Task<()>>,
     _cursor_blink_subscriptions: [gpui::Subscription; 3],
@@ -624,6 +627,7 @@ impl TerminalView {
             self.clear_output_hover(cx);
         }
         if self.output_visible != visible {
+            self.sleep_idle_since = std::time::Instant::now();
             self.cursor_animation.reset();
             if !visible {
                 // 隐藏即输出帧时间线的终结：恢复可见后的第一批输出按「无上一
@@ -665,6 +669,7 @@ impl TerminalView {
         }
         match event {
             TermEvent::Wakeup => {
+                self.sleep_idle_since = std::time::Instant::now();
                 self.restore_shell_pointer_selection();
                 self.observe_reading_output(cx);
                 self.flush_pending_runtime_submit(cx);
@@ -835,6 +840,16 @@ impl TerminalView {
                 {
                     return;
                 }
+                // OMP redraws each user message with OSC 133;B, C, D;0. Its
+                // native session-end hook and local process probe own CLI exit.
+                if exit_code == Some(0)
+                    && self.running_program.as_deref() == Some("omp")
+                    && self.agent_activity.hook_seen()
+                    && self.suggest.suggest_env.is_this_machine()
+                    && self.session.as_ref().is_some_and(|session| session.shell_pid != 0)
+                {
+                    return;
+                }
                 self.finish_foreground_command(exit_code, cx);
             },
             TermEvent::Notify(body) => {
@@ -869,6 +884,7 @@ impl TerminalView {
                     self.on_native_cmd_prompt(cx);
                 }
                 self.suggest.completion_shell_report(&name, &value);
+                self.observe_sleep_readiness(&name, &value);
                 self.native_clipboard.observe(&name, &value);
                 self.observe_shell_pointer(&name, &value, cx);
                 self.handle_completion_editor_report(&name, &value, cx);
@@ -958,6 +974,7 @@ impl TerminalView {
         self.editor_query_task = None;
         self.cursor_animation.note_input(&bytes);
         self.prompt_input_epoch = self.prompt_input_epoch.wrapping_add(1);
+        self.sleep_idle_since = std::time::Instant::now();
         self.path_drop.observe_input(&bytes);
         self.image_paste.observe_input(&bytes);
         self.confirmation.observe_input(&bytes);
@@ -968,6 +985,7 @@ impl TerminalView {
                 let mut term = session.term.lock();
                 if !bytes.is_empty() {
                     status_acknowledged = term.acknowledge_program_status_results();
+                    term.note_prompt_input(matches!(bytes.as_slice(), b"\r" | b"\n" | b"\x03"));
                 }
                 // Match the parser's Term-lock order before attributing queued prompts.
                 session.native_prompt.observe_input(self.prompt_input_epoch, preserves_prompt);
